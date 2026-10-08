@@ -1,0 +1,4 @@
+name: Desarrollo Local
+values:
+  - key: base_url
+    value: ''
