@@ -54,7 +54,15 @@ export default function VistaAdmin() {
             ? 'configuracion'
             : 'dashboard'
     );
-    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 640 : true));
+    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
+
+    useEffect(() => {
+        const onResize = () => {
+            if (window.innerWidth <= 768) setMenuAbierto(false);
+        };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
     const [toast, setToast] = useState(null);
 
     // Filtros interactivos para reducir ruido visual
@@ -132,7 +140,7 @@ export default function VistaAdmin() {
 
     function cambiarVista(nuevaVista) {
         setVistaAdmin(nuevaVista);
-        if (window.innerWidth <= 640) {
+        if (window.innerWidth <= 768) {
             setMenuAbierto(false);
         }
     }
@@ -1343,7 +1351,13 @@ export default function VistaAdmin() {
                                                             (i) => Number(i.id_insumo) === Number(rec.id_insumo)
                                                         );
                                                         const stockDisp = Number(insObj?.cantidad ?? insObj?.stock ?? 0);
-                                                        return !insObj || stockDisp < Number(rec.cantidad_requerida || 0);
+                                                        const nivelIns = insObj?.nivel;
+                                                        return (
+                                                            !insObj ||
+                                                            stockDisp < Number(rec.cantidad_requerida || 0) ||
+                                                            nivelIns === 'crítico' ||
+                                                            (!disp && Number(pl.stock ?? pl.Stock ?? 0) <= 0 && nivelIns !== 'OK')
+                                                        );
                                                     });
                                                     const faltaInsumo = faltantes.length > 0;
                                                     return (

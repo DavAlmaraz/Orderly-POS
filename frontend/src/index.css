@@ -1357,7 +1357,7 @@ body {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .sidebar {
     position: fixed;
     top: 0;

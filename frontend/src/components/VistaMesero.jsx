@@ -33,7 +33,15 @@ export default function VistaMesero() {
 
     const [estado, setEstado] = useState(null);
     const [vistaMesera, setVistaMesera] = useState('mapa_mesas');
-    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 640 : true));
+    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
+
+    useEffect(() => {
+        const onResize = () => {
+            if (window.innerWidth <= 768) setMenuAbierto(false);
+        };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
     const [filtroMapaMesas, setFiltroMapaMesas] = useState('todas');
     const [toast, setToast] = useState(null);
     const [notificacionesEmergentes, setNotificacionesEmergentes] = useState([]);
@@ -74,7 +82,7 @@ export default function VistaMesero() {
 
     function cambiarVista(nuevaVista) {
         setVistaMesera(nuevaVista);
-        if (window.innerWidth <= 640) {
+        if (window.innerWidth <= 768) {
             setMenuAbierto(false);
         }
     }

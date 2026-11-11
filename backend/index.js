@@ -1066,6 +1066,19 @@ async function cambiarDisponibilidadPlatillo(req, res) {
         if (!checkInsumos.valido) {
             return res.status(409).json({ error: checkInsumos.error });
         }
+        const insumoCriticoOBajo = (platillo.receta || [])
+            .map((ing) => estado.inventario.find((i) => i.id_insumo === Number(ing.id_insumo)))
+            .find((ins) => {
+                if (!ins) return false;
+                const nivel = obtenerNivelInsumo(ins);
+                return nivel === 'crítico' || (Number(platillo.stock ?? 0) <= 0 && nivel !== 'OK');
+            });
+        if (insumoCriticoOBajo) {
+            const nivelIns = obtenerNivelInsumo(insumoCriticoOBajo);
+            return res.status(409).json({
+                error: `No se puede habilitar ${platillo.nombre}: insumo ${insumoCriticoOBajo.nombre} en nivel ${nivelIns} (${insumoCriticoOBajo.cantidad} ${insumoCriticoOBajo.unidad}). Reabastece el inventario primero.`,
+            });
+        }
         const stockObjetivo = platillo.stock === 0 ? 10 : platillo.stock;
         const stockCapado = Number.isFinite(checkInsumos.porcionesPosibles)
             ? Math.min(stockObjetivo, checkInsumos.porcionesPosibles)

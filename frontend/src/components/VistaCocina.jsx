@@ -15,7 +15,15 @@ export default function VistaCocina() {
 
     const [estado, setEstado] = useState(null);
     const [vistaCocina, setVistaCocina] = useState('pendientes');
-    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 640 : true));
+    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
+
+    useEffect(() => {
+        const onResize = () => {
+            if (window.innerWidth <= 768) setMenuAbierto(false);
+        };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
     const [filtroComandas, setFiltroComandas] = useState('todas');
     const [platillosMarcadosAvance, setPlatillosMarcadosAvance] = useState({});
     const [toast, setToast] = useState(null);
@@ -23,7 +31,7 @@ export default function VistaCocina() {
 
     function cambiarVista(nuevaVista) {
         setVistaCocina(nuevaVista);
-        if (window.innerWidth <= 640) {
+        if (window.innerWidth <= 768) {
             setMenuAbierto(false);
         }
     }
