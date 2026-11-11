@@ -1377,7 +1377,7 @@ export default function VistaMesero() {
                                                     setCantidadExtraSeleccionada(1);
                                                 }}
                                                 className="form-input-clean"
-                                                style={{ flex: 2, minWidth: 180, padding: '8px 10px' }}
+                                                style={{ flex: '1 1 160px', minWidth: 0, padding: '8px 10px' }}
                                             >
                                                 <option value="">Seleccionar platillo con stock...</option>
                                                 {platillosDisponiblesParaAgregar.map((pl) => {
@@ -1428,8 +1428,8 @@ export default function VistaMesero() {
                                                 onChange={(e) => setNotaAlergiaActiva(e.target.value)}
                                                 placeholder="Ej. Sin crema, alergia a cacahuate..."
                                                 style={{
-                                                    flex: 1,
-                                                    minWidth: 180,
+                                                    flex: '1 1 160px',
+                                                    minWidth: 0,
                                                     padding: '9px 12px',
                                                     borderRadius: 8,
                                                     border: '1px solid #fcd34d',
@@ -1801,7 +1801,7 @@ export default function VistaMesero() {
                                             </label>
                                         ))}
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                                <div className="responsive-grid-2" style={{ marginBottom: 16 }}>
                                     <div>
                                         <label style={{ fontSize: 12.5, fontWeight: 600 }}>Método Cuenta 1:</label>
                                         <select
@@ -1854,16 +1854,7 @@ export default function VistaMesero() {
                                         return (
                                             <div
                                                 key={idx}
-                                                style={{
-                                                    display: 'grid',
-                                                    gridTemplateColumns: '105px 95px 90px 1fr',
-                                                    alignItems: 'center',
-                                                    gap: 8,
-                                                    background: '#f8fafc',
-                                                    padding: '8px 10px',
-                                                    borderRadius: 8,
-                                                    fontSize: 12.5,
-                                                }}
+                                                className="payment-split-row"
                                             >
                                                 <strong>Comensal {idx + 1}</strong>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1924,16 +1915,7 @@ export default function VistaMesero() {
                                     {montosComensales.map((mVal, idx) => (
                                         <div
                                             key={idx}
-                                            style={{
-                                                display: 'grid',
-                                                gridTemplateColumns: '110px 125px 1fr',
-                                                alignItems: 'center',
-                                                gap: 8,
-                                                background: '#f8fafc',
-                                                padding: '8px 10px',
-                                                borderRadius: 8,
-                                                fontSize: 12.5,
-                                            }}
+                                            className="payment-split-row-amount"
                                         >
                                             <strong>Comensal {idx + 1}</strong>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

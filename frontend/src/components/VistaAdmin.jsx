@@ -1120,10 +1120,8 @@ export default function VistaAdmin() {
                                                     </div>
 
                                                     <div
+                                                        className="responsive-grid-3"
                                                         style={{
-                                                            display: 'grid',
-                                                            gridTemplateColumns: 'repeat(3, 1fr)',
-                                                            gap: 8,
                                                             marginTop: 12,
                                                             background: '#f8fafc',
                                                             padding: '8px 10px',
@@ -1454,7 +1452,7 @@ export default function VistaAdmin() {
                                             onChange={(e) => setNuevoPlatillo({ ...nuevoPlatillo, descripcion: e.target.value })}
                                             className="form-input-clean"
                                         />
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                        <div className="responsive-grid-2">
                                             <select
                                                 value={nuevoPlatillo.categoria}
                                                 onChange={(e) => setNuevoPlatillo({ ...nuevoPlatillo, categoria: e.target.value })}
@@ -1502,7 +1500,7 @@ export default function VistaAdmin() {
                                                 Receta (insumos por porción)
                                             </div>
 
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: 6, alignItems: 'center' }}>
+                                            <div className="responsive-grid-recipe">
                                                 <select
                                                     value={insumoRecetaSeleccionado}
                                                     onChange={(e) => setInsumoRecetaSeleccionado(Number(e.target.value))}
@@ -1960,7 +1958,7 @@ export default function VistaAdmin() {
                                                 value={filtroReporteMesera}
                                                 onChange={(e) => setFiltroReporteMesera(e.target.value)}
                                                 className="form-input-clean"
-                                                style={{ width: 'auto', minWidth: 180 }}
+                                                style={{ width: 'auto', minWidth: 0, maxWidth: '100%' }}
                                             >
                                                 <option value="Todas">Todas las meseras</option>
                                                 {meserasUnicas.map((mes) => (
@@ -2172,7 +2170,7 @@ export default function VistaAdmin() {
                                         </div>
 
                                         <form onSubmit={guardarYConectarMySQL} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                                            <div className="responsive-grid-2">
                                                 <div>
                                                     <label className="form-field-label">Host:</label>
                                                     <input
@@ -2197,7 +2195,7 @@ export default function VistaAdmin() {
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                            <div className="responsive-grid-2">
                                                 <div>
                                                     <label className="form-field-label">Usuario:</label>
                                                     <input
@@ -2431,7 +2429,7 @@ export default function VistaAdmin() {
                                     className="form-input-clean"
                                 />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div className="responsive-grid-2">
                                 <div>
                                     <label className="form-field-label">Precio ($ MXN):</label>
                                     <input
@@ -2470,7 +2468,7 @@ export default function VistaAdmin() {
                                 <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>
                                     Receta del platillo (Insumos por porción)
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: 6, alignItems: 'center' }}>
+                                <div className="responsive-grid-recipe">
                                     <select
                                         value={insumoRecetaEdicion}
                                         onChange={(e) => setInsumoRecetaEdicion(Number(e.target.value))}
@@ -2622,7 +2620,7 @@ export default function VistaAdmin() {
                                 </select>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div className="responsive-grid-2">
                                 <div>
                                     <label className="form-field-label">Hora de inicio:</label>
                                     <input
@@ -2740,7 +2738,7 @@ export default function VistaAdmin() {
                                 </select>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div className="responsive-grid-2">
                                 <div>
                                     <label className="form-field-label">Hora de entrada:</label>
                                     <input
