@@ -978,6 +978,33 @@ export default function VistaMesero() {
                                         ))}
                                     </div>
 
+                                    {(estado.prediccionDemanda?.sugerenciasMesero || []).length > 0 && (
+                                        <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: '#2B3A4A', marginRight: 4 }}>
+                                                Sugerencias:
+                                            </span>
+                                            {estado.prediccionDemanda.sugerenciasMesero.map((sug) => {
+                                                const plObj = estado.platillos.find(
+                                                    (p) => Number(p.id_platillo ?? p.Id_platillo) === Number(sug.id_platillo)
+                                                );
+                                                const dispSug = plObj && (plObj.disponible ?? plObj.Disponible) && Number(plObj.stock ?? plObj.Stock ?? 0) > 0;
+                                                if (!dispSug) return null;
+                                                return (
+                                                    <button
+                                                        key={sug.id_platillo}
+                                                        type="button"
+                                                        className="cat-tab"
+                                                        style={{ fontSize: 12, borderColor: '#1F5C35', color: '#1F5C35', background: '#f0fdf4' }}
+                                                        title={`${sug.motivo} · Cap: ${sug.capacidadReal}`}
+                                                        onClick={() => agregarAlCarrito(plObj)}
+                                                    >
+                                                        + {sug.nombre} (${sug.precio})
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
                                     <div>
                                         {estado.platillos
                                             .filter((p) => categoriaFiltro === 'Todos' || (p.categoria || p.Categoria) === categoriaFiltro)

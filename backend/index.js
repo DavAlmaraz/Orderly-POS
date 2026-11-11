@@ -401,6 +401,141 @@ function calcularDesempenoPersonal() {
     });
 }
 
+function generarPrediccionDemanda() {
+    const ventasHora = Array.isArray(estado.metricasDia?.ventasPorHora) ? estado.metricasDia.ventasPorHora : [];
+    const horaPico = ventasHora.reduce(
+        (max, cur) => (Number(cur.monto || 0) > Number(max.monto || 0) ? cur : max),
+        { hora: '12pm', monto: 0 }
+    );
+
+    const mesasTotales = Math.max(1, estado.mesas.length);
+    const mesasActivas = estado.mesas.filter((m) => m.estado !== 'libre').length;
+    const factorActividad = 0.35 + (mesasActivas / mesasTotales) * 0.25;
+
+    const conteoEnComandas = new Map();
+    for (const ped of estado.pedidos) {
+        const estPed = ped.estado || ped.Estado;
+        if (['cerrado', 'cancelado'].includes(estPed)) continue;
+        for (const det of ped.detalles || ped.platillos || []) {
+            if (det.estado_item === 'agotado_eliminado') continue;
+            const idP = Number(det.id_platillo ?? det.Id_platillo);
+            conteoEnComandas.set(idP, (conteoEnComandas.get(idP) || 0) + Number(det.cantidad ?? det.Cantidad ?? 0));
+        }
+    }
+
+    const historicoMap = new Map(
+        (estado.metricasDia?.platillosVendidosHoy || []).map((pv) => [Number(pv.id_platillo), Number(pv.cantidad || 0)])
+    );
+
+    const precios = estado.platillos.map((p) => Number(p.precio ?? p.Precio ?? 0));
+    const maxPrecio = Math.max(1, ...precios);
+    const maxHistorico = Math.max(1, ...Array.from(historicoMap.values()), 1);
+
+    const proyeccionPlatillos = estado.platillos.map((plat) => {
+        const idPlatillo = Number(plat.id_platillo ?? plat.Id_platillo);
+        const nombre = plat.nombre || plat.Nombre;
+        const categoria = plat.categoria || plat.Categoria || 'General';
+        const precio = Number(plat.precio ?? plat.Precio ?? 0);
+        const stockDeclarado = Number(plat.stock ?? plat.Stock ?? 0);
+        const disponible = Boolean(plat.disponible ?? plat.Disponible);
+        const tiempoPrep = Number(plat.tiempo_prep_min ?? 10);
+
+        const validacionReceta = validarInsumosReceta(plat.receta, nombre, 1);
+        const porcionesPorReceta = validacionReceta.valido
+            ? (validacionReceta.porcionesPosibles === Infinity ? null : validacionReceta.porcionesPosibles)
+            : 0;
+        const capacidadReal = !disponible
+            ? 0
+            : porcionesPorReceta === null
+                ? stockDeclarado
+                : Math.min(stockDeclarado, porcionesPorReceta);
+
+        const vendidosHoy = historicoMap.get(idPlatillo) || 0;
+        const enComandasActivas = conteoEnComandas.get(idPlatillo) || 0;
+        const baseDemanda = Math.max(vendidosHoy, enComandasActivas);
+        const demandaAdicionalEstimada = baseDemanda > 0
+            ? Math.max(enComandasActivas + 1, Math.round(baseDemanda * factorActividad))
+            : Math.max(enComandasActivas + 2, precio <= 60 ? 6 : 3);
+
+        const deficitEstimado = Math.max(0, demandaAdicionalEstimada - capacidadReal);
+
+        let estadoCobertura = 'Optima';
+        if (!disponible || capacidadReal <= 0) {
+            estadoCobertura = 'Agotado';
+        } else if (capacidadReal < demandaAdicionalEstimada) {
+            estadoCobertura = 'Reabastecer';
+        } else if (capacidadReal < Math.ceil(demandaAdicionalEstimada * 1.4)) {
+            estadoCobertura = 'Ajustada';
+        }
+
+        const scorePopularidad = vendidosHoy / maxHistorico;
+        const scoreRentabilidad = precio / maxPrecio;
+        const scoreCobertura = disponible && capacidadReal > 0
+            ? Math.min(1, capacidadReal / Math.max(1, demandaAdicionalEstimada))
+            : 0;
+        const scoreRapidez = tiempoPrep <= 8 ? 1 : tiempoPrep <= 14 ? 0.65 : 0.35;
+
+        const puntajeSugerencia = disponible && capacidadReal > 0
+            ? Number(((scorePopularidad * 0.35 + scoreRentabilidad * 0.30 + scoreCobertura * 0.25 + scoreRapidez * 0.10) * 100).toFixed(1))
+            : 0;
+
+        let motivo = 'Disponible para venta';
+        if (!disponible || capacidadReal <= 0) {
+            motivo = 'Sin existencias suficientes';
+        } else if (vendidosHoy >= 25 && scoreCobertura >= 0.9) {
+            motivo = 'Favorito del día · Stock óptimo';
+        } else if (precio >= 90 && capacidadReal >= 5) {
+            motivo = 'Alto margen · Disponible';
+        } else if (tiempoPrep <= 6 && capacidadReal >= 8) {
+            motivo = 'Salida rápida · Alta rotación';
+        } else if (vendidosHoy >= 10) {
+            motivo = 'Alta demanda en turno';
+        } else {
+            motivo = 'Disponible · Margen estable';
+        }
+
+        return {
+            id_platillo: idPlatillo,
+            nombre,
+            categoria,
+            precio,
+            disponible,
+            stockDeclarado,
+            porcionesPorReceta,
+            capacidadReal,
+            vendidosHoy,
+            enComandasActivas,
+            demandaProyectada: demandaAdicionalEstimada,
+            deficitEstimado,
+            estadoCobertura,
+            puntajeSugerencia,
+            motivo,
+            ingresoPotencial: Number((Math.min(capacidadReal, demandaAdicionalEstimada) * precio).toFixed(2)),
+        };
+    });
+
+    proyeccionPlatillos.sort((a, b) => b.demandaProyectada - a.demandaProyectada || b.precio - a.precio);
+
+    const sugerenciasMesero = proyeccionPlatillos
+        .filter((p) => p.disponible && p.capacidadReal > 0)
+        .slice()
+        .sort((a, b) => b.puntajeSugerencia - a.puntajeSugerencia)
+        .slice(0, 4);
+
+    return {
+        actualizadoEn: new Date().toISOString(),
+        horaPico: {
+            hora: horaPico.hora || '12pm',
+            monto: Number(horaPico.monto || 0),
+        },
+        factorActividadPct: Math.round((mesasActivas / mesasTotales) * 100),
+        demandaTotalProyectada: proyeccionPlatillos.reduce((acc, p) => acc + p.demandaProyectada, 0),
+        platillosConDeficit: proyeccionPlatillos.filter((p) => p.deficitEstimado > 0 || !p.disponible).length,
+        proyeccionPlatillos,
+        sugerenciasMesero,
+    };
+}
+
 function obtenerSnapshotEstado(rolSolicitante = 'administrador') {
     const inventarioSerializado = estado.inventario.map((ins) => {
         const nivelRaw = obtenerNivelInsumo(ins);
@@ -524,6 +659,7 @@ function obtenerSnapshotEstado(rolSolicitante = 'administrador') {
         conexionMySQL: esAdmin ? obtenerEstadoConexionMySQL() : { conectado: estado.mysqlDisponible },
         turnoActivo: estado.turnoActivo,
         maxPersonasPorMesa: MAX_PERSONAS_POR_MESA,
+        prediccionDemanda: generarPrediccionDemanda(),
     };
 }
 
@@ -1860,6 +1996,10 @@ app.post('/api/sistema/respaldo', verificarToken, verificarRol(['administrador']
         mensaje: 'Respaldo de la base de datos completado con éxito y firmado criptográficamente',
         ...resultado,
     });
+});
+
+app.get('/api/analitica/prediccion-demanda', verificarToken, verificarRol(['mesera', 'cocina', 'administrador']), (_req, res) => {
+    return res.json(generarPrediccionDemanda());
 });
 
 const PORT = process.env.PORT || 3000;

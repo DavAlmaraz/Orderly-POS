@@ -908,6 +908,85 @@ export default function VistaAdmin() {
                                     </div>
                                 </div>
 
+                                {estado.prediccionDemanda && (
+                                    <div className="panel-card" style={{ marginBottom: 20 }}>
+                                        <div className="panel-card-header">
+                                            <span className="panel-card-title" style={{ marginBottom: 0 }}>
+                                                Predicción de demanda y sugerencias del menú
+                                            </span>
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                                <span className="pill-badge gray">
+                                                    Hora pico: {estado.prediccionDemanda.horaPico?.hora || '12pm'} (${Number(estado.prediccionDemanda.horaPico?.monto || 0).toLocaleString()})
+                                                </span>
+                                                <span className="pill-badge green">
+                                                    Demanda proyectada: {estado.prediccionDemanda.demandaTotalProyectada} porc.
+                                                </span>
+                                                {estado.prediccionDemanda.platillosConDeficit > 0 && (
+                                                    <span className="pill-badge amber">
+                                                        {estado.prediccionDemanda.platillosConDeficit} por reabastecer
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="table-responsive">
+                                            <table className="data-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Platillo</th>
+                                                        <th>Vendidos hoy</th>
+                                                        <th>Demanda est.</th>
+                                                        <th>Capacidad real</th>
+                                                        <th>Cobertura</th>
+                                                        <th>Recomendación</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {(estado.prediccionDemanda.proyeccionPlatillos || []).slice(0, 6).map((item) => {
+                                                        const badgeClass =
+                                                            item.estadoCobertura === 'Optima'
+                                                                ? 'green'
+                                                                : item.estadoCobertura === 'Ajustada'
+                                                                    ? 'amber'
+                                                                    : 'red';
+                                                        const labelCobertura =
+                                                            item.estadoCobertura === 'Optima' ? 'Óptima' : item.estadoCobertura;
+                                                        return (
+                                                            <tr key={item.id_platillo}>
+                                                                <td style={{ fontWeight: 700 }}>{item.nombre}</td>
+                                                                <td>{item.vendidosHoy}</td>
+                                                                <td style={{ fontWeight: 700 }}>{item.demandaProyectada} porc.</td>
+                                                                <td>{item.capacidadReal} porc.</td>
+                                                                <td>
+                                                                    <span className={`pill-badge ${badgeClass}`}>{labelCobertura}</span>
+                                                                </td>
+                                                                <td style={{ color: '#475569', fontSize: 12 }}>
+                                                                    {item.deficitEstimado > 0
+                                                                        ? `Preparar o surtir +${item.deficitEstimado} porc.`
+                                                                        : item.motivo}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {(estado.prediccionDemanda.sugerenciasMesero || []).length > 0 && (
+                                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                                                <span style={{ fontSize: 12, fontWeight: 700, color: '#2B3A4A' }}>
+                                                    Sugerencias activas en salón:
+                                                </span>
+                                                {estado.prediccionDemanda.sugerenciasMesero.map((sug) => (
+                                                    <span key={sug.id_platillo} className="pill-badge green" style={{ fontSize: 11 }}>
+                                                        {sug.nombre} · ${sug.precio} ({sug.motivo})
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="panel-card">
                                     <div className="panel-card-header">
                                         <span className="panel-card-title" style={{ marginBottom: 0 }}>
