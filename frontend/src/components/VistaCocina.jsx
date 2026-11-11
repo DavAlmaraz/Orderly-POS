@@ -5,8 +5,6 @@ import api, {
     SOCKET_URL,
     obtenerSesionActiva,
     limpiarSesionActiva,
-    obtenerEstadoPermisoPush,
-    solicitarPermisoNotificacionesPush,
     dispararNotificacionPushNavegador,
 } from '../services/api';
 
@@ -17,31 +15,15 @@ export default function VistaCocina() {
 
     const [estado, setEstado] = useState(null);
     const [vistaCocina, setVistaCocina] = useState('pendientes');
-    const [menuAbierto, setMenuAbierto] = useState(false);
+    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 640 : true));
     const [filtroComandas, setFiltroComandas] = useState('todas');
     const [platillosMarcadosAvance, setPlatillosMarcadosAvance] = useState({});
     const [toast, setToast] = useState(null);
     const [notificacionesEmergentes, setNotificacionesEmergentes] = useState([]);
-    const [permisoPush, setPermisoPush] = useState(() => obtenerEstadoPermisoPush());
-
-    async function activarPushCocina() {
-        const res = await solicitarPermisoNotificacionesPush();
-        setPermisoPush(res);
-        if (res === 'granted') {
-            dispararNotificacionPushNavegador({
-                titulo: 'Notificaciones Push KDS Activadas',
-                mensaje: 'Recibirás alertas instantáneas de comandas urgentes, notas de alergia e insumos críticos.',
-                severidad: 'ok',
-            });
-            mostrarToast('Notificaciones Push de Cocina activadas.', 'ok');
-        } else {
-            mostrarToast('Alertas sonoras y emergentes activas en pantalla.', 'alerta');
-        }
-    }
 
     function cambiarVista(nuevaVista) {
         setVistaCocina(nuevaVista);
-        if (window.innerWidth <= 860) {
+        if (window.innerWidth <= 640) {
             setMenuAbierto(false);
         }
     }
@@ -351,7 +333,6 @@ export default function VistaCocina() {
                                 onClick={() => cambiarVista('pendientes')}
                                 title="Comandas pendientes"
                             >
-                                <span className="nav-rail-abbr">PEN</span>
                                 <span className="nav-item-text">Comandas pendientes</span>
                                 <span className="nav-badge">{comandasPendientesCocina.length}</span>
                             </button>
@@ -360,7 +341,6 @@ export default function VistaCocina() {
                                 onClick={() => cambiarVista('listas')}
                                 title="Comandas listas"
                             >
-                                <span className="nav-rail-abbr">LST</span>
                                 <span className="nav-item-text">Comandas listas</span>
                             </button>
 
@@ -370,7 +350,6 @@ export default function VistaCocina() {
                                 onClick={() => cambiarVista('disponibles')}
                                 title="Platillos disponibles"
                             >
-                                <span className="nav-rail-abbr">PLT</span>
                                 <span className="nav-item-text">Platillos disponibles</span>
                             </button>
                             <button
@@ -378,7 +357,6 @@ export default function VistaCocina() {
                                 onClick={() => cambiarVista('inventario_cocina')}
                                 title="Inventario de cocina"
                             >
-                                <span className="nav-rail-abbr">INV</span>
                                 <span className="nav-item-text">Inventario de cocina</span>
                             </button>
 
@@ -388,16 +366,14 @@ export default function VistaCocina() {
                                 onClick={() => cambiarVista('notificaciones')}
                                 title="Notificaciones"
                             >
-                                <span className="nav-rail-abbr">NTF</span>
                                 <span className="nav-item-text">Notificaciones</span>
                                 <span className="nav-badge">{estado.notificaciones.length}</span>
                             </button>
                             <button
-                                className="nav-item"
+                                className="nav-item nav-item-logout"
                                 onClick={handleCerrarSesion}
                                 title="Cerrar sesión"
                             >
-                                <span className="nav-rail-abbr">SAL</span>
                                 <span className="nav-item-text">Cerrar sesión</span>
                             </button>
                         </nav>
@@ -415,17 +391,19 @@ export default function VistaCocina() {
                 <main className="main-area">
                     <header className="top-header">
                         <div className="header-left-group">
-                            <button
-                                type="button"
-                                className="hamburger-btn mobile-menu-trigger"
-                                onClick={() => setMenuAbierto((prev) => !prev)}
-                                title="Desplegar menú"
-                                aria-label="Menú principal"
-                            >
-                                <span className="hamburger-line" />
-                                <span className="hamburger-line" />
-                                <span className="hamburger-line" />
-                            </button>
+                            {!menuAbierto && (
+                                <button
+                                    type="button"
+                                    className="hamburger-btn mobile-menu-trigger"
+                                    onClick={() => setMenuAbierto(true)}
+                                    title="Desplegar menú"
+                                    aria-label="Menú principal"
+                                >
+                                    <span className="hamburger-line" />
+                                    <span className="hamburger-line" />
+                                    <span className="hamburger-line" />
+                                </button>
+                            )}
                             <h1 className="top-header-title">
                                 {vistaCocina === 'pendientes' && 'Comandas pendientes'}
                                 {vistaCocina === 'listas' && 'Comandas listas para entregar'}
@@ -436,15 +414,6 @@ export default function VistaCocina() {
                         </div>
 
                         <div className="top-header-badges">
-                            <button
-                                type="button"
-                                className={`pill-badge ${permisoPush === 'granted' ? 'green' : 'amber'}`}
-                                style={{ border: '1px solid #cbd5e1', cursor: 'pointer' }}
-                                onClick={activarPushCocina}
-                                title="Activar notificaciones Push del sistema para alertas de insumos bajos y comandas"
-                            >
-                                {permisoPush === 'granted' ? 'Push activo' : 'Activar alertas Push'}
-                            </button>
                             {vistaCocina === 'inventario_cocina' ? (
                                 <>
                                     <span className="pill-badge red">

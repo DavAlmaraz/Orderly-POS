@@ -5,8 +5,6 @@ import api, {
     SOCKET_URL,
     obtenerSesionActiva,
     limpiarSesionActiva,
-    obtenerEstadoPermisoPush,
-    solicitarPermisoNotificacionesPush,
     dispararNotificacionPushNavegador,
 } from '../services/api';
 
@@ -52,7 +50,7 @@ export default function VistaAdmin() {
 
     const [estado, setEstado] = useState(null);
     const [vistaAdmin, setVistaAdmin] = useState('dashboard');
-    const [menuAbierto, setMenuAbierto] = useState(false);
+    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 640 : true));
     const [toast, setToast] = useState(null);
 
     // Filtros interactivos para reducir ruido visual
@@ -66,8 +64,7 @@ export default function VistaAdmin() {
     const [mesaInspeccionada, setMesaInspeccionada] = useState(null);
     const [platilloEditando, setPlatilloEditando] = useState(null);
 
-    // Notificaciones Push y Alertas Críticas en tiempo real
-    const [permisoPush, setPermisoPush] = useState(() => obtenerEstadoPermisoPush());
+    // Alertas Críticas en tiempo real
     const [alertasPushFlotantes, setAlertasPushFlotantes] = useState([]);
     const [qrRed, setQrRed] = useState(null);
 
@@ -131,7 +128,7 @@ export default function VistaAdmin() {
 
     function cambiarVista(nuevaVista) {
         setVistaAdmin(nuevaVista);
-        if (window.innerWidth <= 860) {
+        if (window.innerWidth <= 640) {
             setMenuAbierto(false);
         }
     }
@@ -164,21 +161,6 @@ export default function VistaAdmin() {
         setTimeout(() => {
             setAlertasPushFlotantes((prev) => prev.filter((p) => p.id !== idPopup));
         }, 12000);
-    }
-
-    async function activarNotificacionesPush() {
-        const res = await solicitarPermisoNotificacionesPush();
-        setPermisoPush(res);
-        if (res === 'granted') {
-            dispararNotificacionPushNavegador({
-                titulo: 'Notificaciones Push Activadas',
-                mensaje: 'Recibirás alertas inmediatas de insumos bajos/críticos, platillos agotados y comandas urgentes.',
-                severidad: 'ok',
-            });
-            mostrarToast('Notificaciones Push del navegador activadas correctamente.', 'ok');
-        } else {
-            mostrarToast('Alertas Push en pantalla y sonido activadas en este dispositivo.', 'alerta');
-        }
     }
 
     async function cargarQrRed() {
@@ -651,7 +633,6 @@ export default function VistaAdmin() {
                                 onClick={() => cambiarVista('dashboard')}
                                 title="Resumen del día"
                             >
-                                <span className="nav-rail-abbr">RES</span>
                                 <span className="nav-item-text">Resumen del día</span>
                             </button>
                             <button
@@ -659,7 +640,6 @@ export default function VistaAdmin() {
                                 onClick={() => cambiarVista('mesas')}
                                 title="Mesas en tiempo real"
                             >
-                                <span className="nav-rail-abbr">MES</span>
                                 <span className="nav-item-text">Mesas en tiempo real</span>
                             </button>
                             <button
@@ -667,7 +647,6 @@ export default function VistaAdmin() {
                                 onClick={() => cambiarVista('comandas')}
                                 title="Comandas activas"
                             >
-                                <span className="nav-rail-abbr">COM</span>
                                 <span className="nav-item-text">Comandas activas</span>
                             </button>
 
@@ -677,7 +656,6 @@ export default function VistaAdmin() {
                                 onClick={() => cambiarVista('catalogo')}
                                 title="Platillos y menú"
                             >
-                                <span className="nav-rail-abbr">MNU</span>
                                 <span className="nav-item-text">Platillos y menú</span>
                             </button>
                             <button
@@ -685,7 +663,6 @@ export default function VistaAdmin() {
                                 onClick={() => cambiarVista('inventario')}
                                 title="Inventario"
                             >
-                                <span className="nav-rail-abbr">INV</span>
                                 <span className="nav-item-text">Inventario</span>
                                 <span className="nav-badge">{estado.alertasActivasCount}</span>
                             </button>
@@ -694,7 +671,6 @@ export default function VistaAdmin() {
                                 onClick={() => cambiarVista('usuarios')}
                                 title="Usuarios y roles"
                             >
-                                <span className="nav-rail-abbr">USR</span>
                                 <span className="nav-item-text">Usuarios y roles</span>
                             </button>
 
@@ -704,7 +680,6 @@ export default function VistaAdmin() {
                                 onClick={() => cambiarVista('reportes')}
                                 title="Reportes de ventas"
                             >
-                                <span className="nav-rail-abbr">RPT</span>
                                 <span className="nav-item-text">Reportes de ventas</span>
                             </button>
                             <button
@@ -712,7 +687,6 @@ export default function VistaAdmin() {
                                 onClick={() => cambiarVista('cierre_caja')}
                                 title="Cierre de caja"
                             >
-                                <span className="nav-rail-abbr">CAJ</span>
                                 <span className="nav-item-text">Cierre de caja</span>
                             </button>
 
@@ -725,15 +699,13 @@ export default function VistaAdmin() {
                                 }}
                                 title="Configuración y respaldos"
                             >
-                                <span className="nav-rail-abbr">CFG</span>
                                 <span className="nav-item-text">Configuración / Respaldos</span>
                             </button>
                             <button
-                                className="nav-item"
+                                className="nav-item nav-item-logout"
                                 onClick={handleCerrarSesion}
                                 title="Cerrar sesión"
                             >
-                                <span className="nav-rail-abbr">SAL</span>
                                 <span className="nav-item-text">Cerrar sesión</span>
                             </button>
                         </nav>
@@ -751,17 +723,19 @@ export default function VistaAdmin() {
                 <main className="main-area">
                     <header className="top-header">
                         <div className="header-left-group">
-                            <button
-                                type="button"
-                                className="hamburger-btn mobile-menu-trigger"
-                                onClick={() => setMenuAbierto((prev) => !prev)}
-                                title="Desplegar menú"
-                                aria-label="Menú principal"
-                            >
-                                <span className="hamburger-line" />
-                                <span className="hamburger-line" />
-                                <span className="hamburger-line" />
-                            </button>
+                            {!menuAbierto && (
+                                <button
+                                    type="button"
+                                    className="hamburger-btn mobile-menu-trigger"
+                                    onClick={() => setMenuAbierto(true)}
+                                    title="Desplegar menú"
+                                    aria-label="Menú principal"
+                                >
+                                    <span className="hamburger-line" />
+                                    <span className="hamburger-line" />
+                                    <span className="hamburger-line" />
+                                </button>
+                            )}
                             <h1 className="top-header-title">
                                 {vistaAdmin === 'dashboard' && 'Dashboard — Resumen del día'}
                                 {vistaAdmin === 'mesas' && 'Mesas en tiempo real (10 mesas)'}
@@ -775,15 +749,6 @@ export default function VistaAdmin() {
                             </h1>
                         </div>
                         <div className="top-header-badges">
-                            <button
-                                type="button"
-                                className={`pill-badge ${permisoPush === 'granted' ? 'green' : 'amber'}`}
-                                style={{ border: '1px solid #cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                                onClick={activarNotificacionesPush}
-                                title="Activar notificaciones Push del sistema para alertas de insumos bajos y comandas críticas"
-                            >
-                                <span>{permisoPush === 'granted' ? 'Push activo' : 'Activar alertas Push'}</span>
-                            </button>
                             <button
                                 type="button"
                                 className="pill-badge green"
@@ -925,14 +890,6 @@ export default function VistaAdmin() {
                                             <span className="panel-card-title" style={{ marginBottom: 0 }}>
                                                 Platillos más vendidos hoy
                                             </span>
-                                            <button
-                                                type="button"
-                                                className="secondary-outline-btn"
-                                                style={{ padding: '4px 10px', fontSize: 11.5 }}
-                                                onClick={() => cambiarVista('catalogo')}
-                                            >
-                                                Editar menú →
-                                            </button>
                                         </div>
                                         <div className="horizontal-bar-list">
                                             {estado.metricasDia.platillosVendidosHoy.map((pv, i) => {
@@ -1901,18 +1858,9 @@ export default function VistaAdmin() {
                                             <span className="panel-card-title" style={{ marginBottom: 0 }}>
                                                 Filtros analíticos de ventas
                                             </span>
-                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                                <button type="button" className="secondary-outline-btn" onClick={descargarCsv}>
-                                                    Exportar CSV
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="primary-dark-btn"
-                                                    onClick={() => cambiarVista('cierre_caja')}
-                                                >
-                                                    Ir a Cierre de caja
-                                                </button>
-                                            </div>
+                                            <button type="button" className="secondary-outline-btn" onClick={descargarCsv}>
+                                                Exportar CSV
+                                            </button>
                                         </div>
 
                                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10, marginBottom: 14 }}>
@@ -2032,13 +1980,6 @@ export default function VistaAdmin() {
                                             <span className="panel-card-title" style={{ marginBottom: 0 }}>
                                                 Resumen esperado de corte por forma de cobro
                                             </span>
-                                            <button
-                                                type="button"
-                                                className="secondary-outline-btn"
-                                                onClick={() => cambiarVista('reportes')}
-                                            >
-                                                Ver detalle en Reportes
-                                            </button>
                                         </div>
 
                                         <div className="kpi-grid" style={{ marginTop: 12 }}>
@@ -2283,13 +2224,13 @@ export default function VistaAdmin() {
                                                         {qrRed.urlPrincipal}
                                                     </div>
                                                     <button type="button" className="secondary-outline-btn" onClick={cargarQrRed}>
-                                                        Actualizar IP de red
+                                                        Actualizar código QR
                                                     </button>
                                                 </div>
                                             </div>
                                         ) : (
                                             <button type="button" className="secondary-outline-btn" onClick={cargarQrRed}>
-                                                Generar código QR de acceso local
+                                                Actualizar código QR
                                             </button>
                                         )}
                                     </div>
@@ -2368,19 +2309,11 @@ export default function VistaAdmin() {
                                 <div style={{ display: 'flex', gap: 10 }}>
                                     <button
                                         type="button"
-                                        className="secondary-outline-btn"
-                                        style={{ flex: 1 }}
-                                        onClick={() => setMesaInspeccionada(null)}
-                                    >
-                                        Cerrar
-                                    </button>
-                                    <button
-                                        type="button"
                                         className="danger-solid-btn"
-                                        style={{ flex: 1.4 }}
+                                        style={{ width: '100%' }}
                                         onClick={() => cancelarComandaDesdeAdmin(pedidoMesaInspeccionada)}
                                     >
-                                        Cancelar orden y liberar
+                                        Cancelar orden y liberar mesa
                                     </button>
                                 </div>
                             </div>

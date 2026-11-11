@@ -5,8 +5,6 @@ import api, {
     SOCKET_URL,
     obtenerSesionActiva,
     limpiarSesionActiva,
-    obtenerEstadoPermisoPush,
-    solicitarPermisoNotificacionesPush,
     dispararNotificacionPushNavegador,
 } from '../services/api';
 
@@ -35,26 +33,10 @@ export default function VistaMesero() {
 
     const [estado, setEstado] = useState(null);
     const [vistaMesera, setVistaMesera] = useState('mapa_mesas');
-    const [menuAbierto, setMenuAbierto] = useState(false);
+    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 640 : true));
     const [filtroMapaMesas, setFiltroMapaMesas] = useState('todas');
     const [toast, setToast] = useState(null);
     const [notificacionesEmergentes, setNotificacionesEmergentes] = useState([]);
-    const [permisoPush, setPermisoPush] = useState(() => obtenerEstadoPermisoPush());
-
-    async function activarPushMesera() {
-        const res = await solicitarPermisoNotificacionesPush();
-        setPermisoPush(res);
-        if (res === 'granted') {
-            dispararNotificacionPushNavegador({
-                titulo: 'Notificaciones Push de Salón Activadas',
-                mensaje: 'Recibirás avisos inmediatos cuando tus comandas estén listas, un platillo se agote o haya alertas críticas.',
-                severidad: 'ok',
-            });
-            mostrarToast('Notificaciones Push de Salón activadas.', 'ok');
-        } else {
-            mostrarToast('Alertas emergentes y sonido activos en este dispositivo.', 'alerta');
-        }
-    }
 
     // Estado para Nueva Comanda (Ilustración 6)
     const [mesaSeleccionadaNueva, setMesaSeleccionadaNueva] = useState(1);
@@ -92,7 +74,7 @@ export default function VistaMesero() {
 
     function cambiarVista(nuevaVista) {
         setVistaMesera(nuevaVista);
-        if (window.innerWidth <= 860) {
+        if (window.innerWidth <= 640) {
             setMenuAbierto(false);
         }
     }
@@ -808,7 +790,6 @@ export default function VistaMesero() {
                                 onClick={() => cambiarVista('mapa_mesas')}
                                 title="Mapa de mesas"
                             >
-                                <span className="nav-rail-abbr">MES</span>
                                 <span className="nav-item-text">Mapa de mesas</span>
                             </button>
                             <button
@@ -816,7 +797,6 @@ export default function VistaMesero() {
                                 onClick={() => cambiarVista('nueva_comanda')}
                                 title="Nueva comanda"
                             >
-                                <span className="nav-rail-abbr">NVA</span>
                                 <span className="nav-item-text">Nueva comanda</span>
                             </button>
                             <button
@@ -824,7 +804,6 @@ export default function VistaMesero() {
                                 onClick={() => cambiarVista('comanda_activa')}
                                 title="Mis comandas activas"
                             >
-                                <span className="nav-rail-abbr">ACT</span>
                                 <span className="nav-item-text">Mis comandas activas</span>
                                 <span className="nav-badge">{pedidosActivosSalón.length}</span>
                             </button>
@@ -835,7 +814,6 @@ export default function VistaMesero() {
                                 onClick={() => cambiarVista('notificaciones')}
                                 title="Notificaciones"
                             >
-                                <span className="nav-rail-abbr">NTF</span>
                                 <span className="nav-item-text">Notificaciones</span>
                                 <span className="nav-badge">{estado.notificaciones.length}</span>
                             </button>
@@ -844,15 +822,13 @@ export default function VistaMesero() {
                                 onClick={() => cambiarVista('historial')}
                                 title="Mi historial"
                             >
-                                <span className="nav-rail-abbr">HIS</span>
                                 <span className="nav-item-text">Mi historial</span>
                             </button>
                             <button
-                                className="nav-item"
+                                className="nav-item nav-item-logout"
                                 onClick={handleCerrarSesion}
                                 title="Cerrar sesión"
                             >
-                                <span className="nav-rail-abbr">SAL</span>
                                 <span className="nav-item-text">Cerrar sesión</span>
                             </button>
                         </nav>
@@ -870,17 +846,19 @@ export default function VistaMesero() {
                 <main className="main-area">
                     <header className="top-header">
                         <div className="header-left-group">
-                            <button
-                                type="button"
-                                className="hamburger-btn mobile-menu-trigger"
-                                onClick={() => setMenuAbierto((prev) => !prev)}
-                                title="Desplegar menú"
-                                aria-label="Menú principal"
-                            >
-                                <span className="hamburger-line" />
-                                <span className="hamburger-line" />
-                                <span className="hamburger-line" />
-                            </button>
+                            {!menuAbierto && (
+                                <button
+                                    type="button"
+                                    className="hamburger-btn mobile-menu-trigger"
+                                    onClick={() => setMenuAbierto(true)}
+                                    title="Desplegar menú"
+                                    aria-label="Menú principal"
+                                >
+                                    <span className="hamburger-line" />
+                                    <span className="hamburger-line" />
+                                    <span className="hamburger-line" />
+                                </button>
+                            )}
                             <h1 className="top-header-title">
                                 {vistaMesera === 'mapa_mesas' && 'Mapa de mesas'}
                                 {vistaMesera === 'nueva_comanda' && 'Nueva comanda'}
@@ -892,50 +870,17 @@ export default function VistaMesero() {
                         </div>
 
                         <div className="top-header-badges">
-                            <button
-                                type="button"
-                                className={`pill-badge ${permisoPush === 'granted' ? 'green' : 'amber'}`}
-                                style={{ border: '1px solid #cbd5e1', cursor: 'pointer' }}
-                                onClick={activarPushMesera}
-                                title="Activar notificaciones Push del sistema para alertas de comandas e insumos"
-                            >
-                                {permisoPush === 'granted' ? 'Push activo' : 'Activar alertas Push'}
-                            </button>
                             {vistaMesera === 'mapa_mesas' && (
                                 <>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFiltroMapaMesas(filtroMapaMesas === 'libre' ? 'todas' : 'libre')}
-                                        className="pill-badge green"
-                                        style={{
-                                            border: filtroMapaMesas === 'libre' ? '1.5px solid #15803d' : 'none',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
+                                    <span className="pill-badge green">
                                         {estado.mesas.filter((m) => m.estado === 'libre').length} libres
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFiltroMapaMesas(filtroMapaMesas === 'ocupada' ? 'todas' : 'ocupada')}
-                                        className="pill-badge red"
-                                        style={{
-                                            border: filtroMapaMesas === 'ocupada' ? '1.5px solid #dc2626' : 'none',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
+                                    </span>
+                                    <span className="pill-badge red">
                                         {estado.mesas.filter((m) => m.estado === 'ocupada').length} ocupadas
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFiltroMapaMesas(filtroMapaMesas === 'por_cobrar' ? 'todas' : 'por_cobrar')}
-                                        className="pill-badge amber"
-                                        style={{
-                                            border: filtroMapaMesas === 'por_cobrar' ? '1.5px solid #b45309' : 'none',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
+                                    </span>
+                                    <span className="pill-badge amber">
                                         {estado.mesas.filter((m) => m.estado === 'por_cobrar').length} por cobrar
-                                    </button>
+                                    </span>
                                 </>
                             )}
                             {vistaMesera === 'comanda_activa' && pedidoMesaActiva && (
