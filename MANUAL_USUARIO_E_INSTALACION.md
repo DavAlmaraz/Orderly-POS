@@ -36,7 +36,63 @@ No es necesario instalar Node.js ni copiar el código en las demás computadoras
    - **iPhone / iPad (Safari)**: Toque el botón **Compartir** y seleccione **"Agregar a inicio"**.
    - A partir de ese momento Orderly aparecerá con su ícono propio en el teléfono y abrirá a pantalla completa sin barra de direcciones.
 
-> **Nota sobre Firewall de Windows**: Si el teléfono no logra abrir la dirección del QR en el primer intento, permita el tráfico de Node.js en redes privadas desde *Seguridad de Windows -> Firewall y protección de red -> Permitir una aplicación a través de firewall* (puerto `3000`).
+### 1.4 Configuración de Firewall, Redes en Otras Computadoras y Túneles (Presentación / Demostración)
+
+Si va a presentar o ejecutar Orderly POS en **otra computadora** que tenga el Firewall de Windows activo o restricciones en la red local, utilice cualquiera de las siguientes opciones:
+
+#### A. Cambiar perfil de red a Privada (Interfaz de Windows)
+1. Al abrir **`Iniciar_Orderly_POS.bat`** por primera vez, si Windows muestra la alerta *"Firewall de Windows Defender bloqueó algunas características de esta aplicación"*, marque **Redes privadas** (y **Redes públicas** si presentará en Wi-Fi abierto) y haga clic en **Permitir acceso**.
+2. En **Configuración de Windows → Red e Internet → Propiedades de su conexión (Wi-Fi o Ethernet)**, cambie el perfil de red de **Pública** a **Privada**.
+
+#### B. Comandos para CMD (Símbolo del sistema como Administrador)
+Abra el menú **Inicio**, escriba `cmd`, haga clic derecho sobre **Símbolo del sistema → Ejecutar como administrador** y ejecute:
+
+```bat
+REM 1. Permitir conexiones entrantes al puerto TCP 3000 en el Firewall de Windows
+netsh advfirewall firewall add rule name="Orderly POS Puerto 3000" dir=in action=allow protocol=TCP localport=3000
+
+REM 2. Verificar que el servidor esté activo y escuchando en el puerto 3000
+netstat -ano | findstr ":3000 "
+
+REM 3. Consultar las direcciones IPv4 activas de la computadora
+ipconfig
+```
+
+*(Opcional al terminar la demostración en una PC prestada, para eliminar la regla creada):*
+```bat
+netsh advfirewall firewall delete rule name="Orderly POS Puerto 3000"
+```
+
+#### C. Comandos para PowerShell (como Administrador)
+Abra **Inicio**, escriba `PowerShell`, haga clic derecho sobre **Windows PowerShell → Ejecutar como administrador** y ejecute:
+
+```powershell
+# 1. Cambiar todas las conexiones activas al perfil de Red Privada
+Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private
+
+# 2. Permitir el puerto TCP 3000 en el Firewall (entrada)
+New-NetFirewallRule -DisplayName "Orderly POS Puerto 3000" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow -Profile Any
+
+# 3. Ver las IPv4 activas (Ethernet / Wi-Fi / Zona móvil) y probar el puerto 3000
+Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' } | Select-Object InterfaceAlias, IPAddress
+Test-NetConnection -ComputerName localhost -Port 3000
+```
+
+#### D. Cable Ethernet + Internet compartido (Hotspot) o redes con aislamiento entre equipos
+1. **Doble conexión (Cable Ethernet + Wi-Fi compartido desde Windows):** Si la computadora recibe internet por cable y comparte red inalámbrica mediante *Zona con cobertura inalámbrica móvil*, el código QR principal prioriza la IP del cable Ethernet y muestra debajo las direcciones alternativas (la IP del Hotspot compartido en Windows suele ser `http://192.168.137.1:3000/login`).
+2. **Redes escolares, empresariales o públicas (con *AP Isolation*):** Algunas redes bloquean la comunicación directa entre dos dispositivos conectados al mismo Wi-Fi. En ese caso:
+   - **Opción 1 (Red local directa):** Active la **Zona con cobertura inalámbrica móvil** en Windows (o comparta internet desde un teléfono) y conecte ahí tanto la PC como los dispositivos de prueba.
+   - **Opción 2 (Túnel temporal HTTPS):** Si la computadora tiene salida a internet, puede exponer el puerto `3000` mediante un túnel HTTPS temporal sin tocar el firewall ni la configuración del router (funciona directo en Android e iOS sin advertencias SSL):
+     ```powershell
+     # Con Cloudflare Quick Tunnel (si tiene cloudflared instalado)
+     cloudflared tunnel --url http://localhost:3000
+
+     # O con ngrok (si tiene cuenta/agente ngrok)
+     ngrok http 3000
+
+     # O sin instalación previa usando Node.js (localtunnel)
+     npx localtunnel --port 3000
+     ```
 
 ---
 
@@ -92,5 +148,6 @@ Diseñado en color naranja oscuro (`#6B3A07`):
 - **Dashboard — Resumen del día**: Monitoreo en tiempo real de ventas del día, mesas atendidas, tiempo promedio de servicio, alertas activas de inventario, gráfica de ventas por hora, platillos más vendidos, últimas transacciones y **desempeño del personal** por turno.
 - **Gestión del turno activo**: Haga clic en la etiqueta **Editar** del turno activo en la barra superior para cambiar la modalidad (*Turno completo*, *Medio turno matutino/vespertino*), horario de inicio/fin y responsables asignados.
 - **Catálogo de platillos y recetas**: Cree nuevos platillos vinculando exactamente qué **insumos de inventario** y en qué cantidad se requieren por porción; al vender o cancelar un platillo el inventario de materia prima se actualiza de forma automática.
-- **Inventario y alertas Push**: Registre reabastecimientos o mermas. Active **Alertas Push** en la barra superior de cualquier dispositivo para recibir avisos visuales y sonoros cuando un insumo entre en nivel bajo o crítico.
+- **Inventario y alertas en tiempo real**: Registre reabastecimientos o mermas; el sistema muestra alertas visuales y sonoras en tiempo real cuando un insumo entra en nivel bajo o crítico y permite consultar el directorio de proveedores.
+- **Reportes de ventas y Cierre de caja**: En **Reportes de ventas** filtre transacciones por método de pago o mesero y exporte a CSV; en **Cierre de caja** revise el resumen esperado y capture el conteo físico de efectivo para el arqueo final del turno.
 - **Usuarios, contraseñas y respaldos**: Gestione cuentas activas, restablezca contraseñas, configure la conexión MySQL Server 9.4.0 / Workbench 8.0, genere respaldos firmados con HMAC-SHA256 y obtenga el código QR de acceso móvil.
