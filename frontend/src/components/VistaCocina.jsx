@@ -243,7 +243,7 @@ export default function VistaCocina() {
                             }`}
                         >
                             <div className="emergente-popup-header">
-                                <span className="emergente-popup-tag mesera">AVISO DE SALÓN → COCINA</span>
+                                <span className="emergente-popup-tag mesera">Aviso de salón</span>
                                 <span style={{ fontSize: 11.5, color: '#6b7280', fontWeight: 600 }}>{notif.hora}</span>
                             </div>
                             <div className="emergente-popup-title">{notif.titulo}</div>
@@ -258,7 +258,7 @@ export default function VistaCocina() {
                                         setNotificacionesEmergentes((prev) => prev.filter((p) => p.id !== notif.id));
                                     }}
                                 >
-                                    Ver en comandas →
+                                    Ver comandas
                                 </button>
                                 <button
                                     type="button"

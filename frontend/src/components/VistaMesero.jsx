@@ -697,7 +697,7 @@ export default function VistaMesero() {
                             }`}
                         >
                             <div className="emergente-popup-header">
-                                <span className="emergente-popup-tag cocina">AVISO DE COCINA → SALÓN</span>
+                                <span className="emergente-popup-tag cocina">Aviso de cocina</span>
                                 <span style={{ fontSize: 11.5, color: '#6b7280', fontWeight: 600 }}>{notif.hora}</span>
                             </div>
                             <div className="emergente-popup-title">{notif.titulo}</div>
@@ -714,7 +714,7 @@ export default function VistaMesero() {
                                             setNotificacionesEmergentes((prev) => prev.filter((p) => p.id !== notif.id));
                                         }}
                                     >
-                                        Ir a Mesa {String(notif.numero_mesa).padStart(2, '0')} →
+                                        Ver Mesa {String(notif.numero_mesa).padStart(2, '0')}
                                     </button>
                                 )}
                                 <button

@@ -49,7 +49,11 @@ export default function VistaAdmin() {
     const usuarioActual = sesion?.usuario || { id_usuario: 1, nombre: 'J. David', rol: 'administrador', turno: '8am - 6pm', iniciales: 'JD' };
 
     const [estado, setEstado] = useState(null);
-    const [vistaAdmin, setVistaAdmin] = useState('dashboard');
+    const [vistaAdmin, setVistaAdmin] = useState(() =>
+        typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sistema') === '1'
+            ? 'configuracion'
+            : 'dashboard'
+    );
     const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 640 : true));
     const [toast, setToast] = useState(null);
 
@@ -664,7 +668,9 @@ export default function VistaAdmin() {
                                 title="Inventario"
                             >
                                 <span className="nav-item-text">Inventario</span>
-                                <span className="nav-badge">{estado.alertasActivasCount}</span>
+                                {estado.alertasActivasCount > 0 && (
+                                    <span className="nav-badge">{estado.alertasActivasCount}</span>
+                                )}
                             </button>
                             <button
                                 className={`nav-item ${vistaAdmin === 'usuarios' ? 'active' : ''}`}
@@ -692,16 +698,6 @@ export default function VistaAdmin() {
 
                             <div className="nav-section-label">CUENTA</div>
                             <button
-                                className={`nav-item ${vistaAdmin === 'configuracion' ? 'active' : ''}`}
-                                onClick={() => {
-                                    cambiarVista('configuracion');
-                                    cargarQrRed();
-                                }}
-                                title="Configuración y respaldos"
-                            >
-                                <span className="nav-item-text">Configuración / Respaldos</span>
-                            </button>
-                            <button
                                 className="nav-item nav-item-logout"
                                 onClick={handleCerrarSesion}
                                 title="Cerrar sesión"
@@ -711,7 +707,15 @@ export default function VistaAdmin() {
                         </nav>
                     </div>
 
-                    <div className="sidebar-footer" title={`${usuarioActual.nombre} · Administrador`}>
+                    <div
+                        className="sidebar-footer"
+                        title={`${usuarioActual.nombre} · Administrador`}
+                        onDoubleClick={() => {
+                            const siguiente = vistaAdmin === 'configuracion' ? 'dashboard' : 'configuracion';
+                            cambiarVista(siguiente);
+                            if (siguiente === 'configuracion') cargarQrRed();
+                        }}
+                    >
                         <div className="user-avatar">{usuarioActual.iniciales || 'JD'}</div>
                         <div className="sidebar-user-text">
                             <div className="user-meta-name">{usuarioActual.nombre}</div>
@@ -737,40 +741,27 @@ export default function VistaAdmin() {
                                 </button>
                             )}
                             <h1 className="top-header-title">
-                                {vistaAdmin === 'dashboard' && 'Dashboard — Resumen del día'}
-                                {vistaAdmin === 'mesas' && 'Mesas en tiempo real (10 mesas)'}
-                                {vistaAdmin === 'comandas' && 'Comandas registradas'}
-                                {vistaAdmin === 'catalogo' && 'Catálogo de platillos y precios'}
-                                {vistaAdmin === 'inventario' && 'Inventario de insumos y proveedores'}
-                                {vistaAdmin === 'usuarios' && 'Usuarios, contraseñas y turnos'}
+                                {vistaAdmin === 'dashboard' && 'Resumen del día'}
+                                {vistaAdmin === 'mesas' && 'Mesas en tiempo real'}
+                                {vistaAdmin === 'comandas' && 'Comandas activas'}
+                                {vistaAdmin === 'catalogo' && 'Platillos y menú'}
+                                {vistaAdmin === 'inventario' && 'Inventario y proveedores'}
+                                {vistaAdmin === 'usuarios' && 'Usuarios y turnos'}
                                 {vistaAdmin === 'reportes' && 'Reportes de ventas'}
-                                {vistaAdmin === 'cierre_caja' && 'Cierre de caja y arqueo de turno'}
-                                {vistaAdmin === 'configuracion' && 'Respaldos y bitácora de actividad'}
+                                {vistaAdmin === 'cierre_caja' && 'Cierre de caja'}
+                                {vistaAdmin === 'configuracion' && 'Sistema y respaldos'}
                             </h1>
                         </div>
                         <div className="top-header-badges">
                             <button
                                 type="button"
-                                className="pill-badge green"
-                                style={{ border: '1px solid #bbf7d0', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                                className="pill-badge gray"
+                                style={{ border: '1px solid #e5e7eb', cursor: 'pointer' }}
                                 onClick={abrirModalEditarTurnoActivo}
-                                title="Clic para editar horario, modalidad o responsable del turno activo"
+                                title="Editar turno activo"
                             >
-                                <span>
-                                    Turno activo · {estado.turnoActivo?.modalidad || 'Turno completo'} ({estado.turnoActivo?.horario_texto || '8am - 10pm'}) · Resp: {estado.turnoActivo?.nombre_responsable || 'J. David'}
-                                </span>
-                                <span style={{ textDecoration: 'underline', fontWeight: 700, marginLeft: 4 }}>Editar</span>
+                                {estado.turnoActivo?.modalidad || 'Turno completo'} · {estado.turnoActivo?.horario_texto || '8am - 10pm'}
                             </button>
-                            {estado.alertasActivasCount > 0 && (
-                                <button
-                                    type="button"
-                                    className="pill-badge red"
-                                    style={{ border: 'none', cursor: 'pointer' }}
-                                    onClick={() => cambiarVista('inventario')}
-                                >
-                                    {estado.alertasActivasCount} alertas de inventario
-                                </button>
-                            )}
                         </div>
                     </header>
 
