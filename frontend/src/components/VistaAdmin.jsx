@@ -2860,14 +2860,24 @@ export default function VistaAdmin() {
                                             Insumos: {prov.insumos.join(', ')}
                                         </div>
                                     </div>
-                                    <button
-                                        type="button"
-                                        className="primary-dark-btn"
-                                        style={{ padding: '8px 14px', fontSize: 12.5 }}
-                                        onClick={() => registrarLlamadaProveedor(prov)}
-                                    >
-                                        Solicitar pedido
-                                    </button>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                        <a
+                                            href={`tel:${prov.telefono.replace(/\D/g, '')}`}
+                                            className="primary-dark-btn"
+                                            style={{ padding: '8px 14px', fontSize: 12.5, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+                                            onClick={() => registrarLlamadaProveedor(prov)}
+                                        >
+                                            Llamar
+                                        </a>
+                                        <button
+                                            type="button"
+                                            className="secondary-outline-btn"
+                                            style={{ padding: '8px 14px', fontSize: 12.5 }}
+                                            onClick={() => registrarLlamadaProveedor(prov)}
+                                        >
+                                            Solicitar pedido
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
