@@ -112,6 +112,69 @@ function validarRangoPersonasMesa(personas) {
     return { valido: true, valor: num };
 }
 
+/**
+ * Verifica si los insumos en inventario alcanzan para preparar `porcionesSolicitadas`
+ * de una receta y calcula el máximo de porciones preparables.
+ */
+function validarInsumosReceta(receta, nombrePlatillo, porcionesSolicitadas = 1) {
+    if (!Array.isArray(receta) || receta.length === 0) {
+        return { valido: true, porcionesPosibles: Infinity };
+    }
+    let porcionesPosibles = Infinity;
+    for (const ing of receta) {
+        const cantPorPorcion = Number(ing.cantidad_requerida || 0);
+        if (cantPorPorcion <= 0) continue;
+        const insumo = estado.inventario.find((i) => i.id_insumo === Number(ing.id_insumo));
+        if (!insumo) {
+            return {
+                valido: false,
+                porcionesPosibles: 0,
+                error: `No se puede activar "${nombrePlatillo}": el insumo #${ing.id_insumo} de su receta no existe en el inventario.`
+            };
+        }
+        const posiblesConInsumo = Math.floor(Number((Number(insumo.cantidad || 0) / cantPorPorcion).toFixed(6)));
+        porcionesPosibles = Math.min(porcionesPosibles, posiblesConInsumo);
+        const requeridoTotal = Number((cantPorPorcion * porcionesSolicitadas).toFixed(3));
+        if (Number(insumo.cantidad || 0) < requeridoTotal) {
+            return {
+                valido: false,
+                porcionesPosibles,
+                insumoFaltante: insumo.nombre,
+                error: `Insumo insuficiente para "${nombrePlatillo}": requiere ${requeridoTotal} ${insumo.unidad} de ${insumo.nombre} (disponible: ${insumo.cantidad} ${insumo.unidad}).`
+            };
+        }
+    }
+    return { valido: true, porcionesPosibles };
+}
+
+function sincronizarPlatillosSinInsumos(actor = 'Sistema') {
+    const desactivados = [];
+    for (const plat of estado.platillos) {
+        const disp = plat.disponible ?? plat.Disponible;
+        if (!disp || !Array.isArray(plat.receta) || plat.receta.length === 0) continue;
+        const check = validarInsumosReceta(plat.receta, plat.nombre || plat.Nombre, 1);
+        if (!check.valido) {
+            plat.disponible = false;
+            plat.Disponible = false;
+            plat.stock = 0;
+            plat.Stock = 0;
+            desactivados.push(plat.nombre || plat.Nombre);
+            emitirPushCritica({
+                rol_destino: 'todos',
+                categoria: 'platillo_agotado',
+                severidad: 'critico',
+                titulo: `Platillo desactivado por falta de insumos: ${plat.nombre || plat.Nombre}`,
+                mensaje: check.error,
+            });
+            registrarLog(actor, 'PLATILLO_SIN_INSUMOS', check.error);
+        } else if (Number.isFinite(check.porcionesPosibles) && Number(plat.stock ?? plat.Stock ?? 0) > check.porcionesPosibles) {
+            plat.stock = check.porcionesPosibles;
+            plat.Stock = check.porcionesPosibles;
+        }
+    }
+    return desactivados;
+}
+
 function verificarStockPlatilloEInsumos(plat, cantidadSolicitada) {
     if (!plat) {
         return { valido: false, error: 'El platillo seleccionado no existe en el catálogo.' };
@@ -127,19 +190,9 @@ function verificarStockPlatilloEInsumos(plat, cantidadSolicitada) {
             error: `Stock insuficiente para "${plat.nombre || plat.Nombre}": solicita ${cantidadSolicitada}, pero solo hay ${stockActual} disponibles.`
         };
     }
-    if (Array.isArray(plat.receta) && plat.receta.length > 0) {
-        for (const ing of plat.receta) {
-            const insumo = estado.inventario.find((i) => i.id_insumo === Number(ing.id_insumo));
-            if (insumo) {
-                const requeridoTotal = Number((Number(ing.cantidad_requerida || 0) * cantidadSolicitada).toFixed(3));
-                if (insumo.cantidad < requeridoTotal) {
-                    return {
-                        valido: false,
-                        error: `Insumo insuficiente para preparar ${cantidadSolicitada}× "${plat.nombre}": requiere ${requeridoTotal} ${insumo.unidad} de ${insumo.nombre} (disponible: ${insumo.cantidad} ${insumo.unidad}).`
-                    };
-                }
-            }
-        }
+    const resReceta = validarInsumosReceta(plat.receta, plat.nombre || plat.Nombre, cantidadSolicitada);
+    if (!resReceta.valido) {
+        return { valido: false, error: resReceta.error };
     }
     return { valido: true };
 }
@@ -232,6 +285,10 @@ function ajustarStockEInsumosDePlatillo(plat, deltaUnidades) {
                 }
             }
         });
+    }
+
+    if (Array.isArray(plat.receta) && plat.receta.length > 0 && deltaUnidades > 0) {
+        sincronizarPlatillosSinInsumos('Sistema');
     }
 
     const vendidoEntry = estado.metricasDia.platillosVendidosHoy.find(
@@ -745,8 +802,16 @@ app.post('/api/platillos', verificarToken, verificarRol(['administrador']), asyn
             .filter((r) => r.id_insumo > 0 && !isNaN(r.cantidad_requerida) && r.cantidad_requerida > 0)
         : [];
 
-    const nuevoId = estado.platillos.reduce((max, p) => Math.max(max, p.id_platillo || p.Id_platillo || 0), 0) + 1;
     const stockNum = Math.max(0, Number(stock ?? 15));
+    if (stockNum > 0 && recetaLimpia.length > 0) {
+        const checkInsumos = validarInsumosReceta(recetaLimpia, String(nombre).trim(), stockNum);
+        if (!checkInsumos.valido) {
+            return res.status(409).json({
+                error: `${checkInsumos.error} Máximo activable con inventario actual: ${checkInsumos.porcionesPosibles} porción(es).`
+            });
+        }
+    }
+    const nuevoId = estado.platillos.reduce((max, p) => Math.max(max, p.id_platillo || p.Id_platillo || 0), 0) + 1;
     const nuevoPlatillo = {
         Id_platillo: nuevoId,
         id_platillo: nuevoId,
@@ -796,6 +861,31 @@ app.patch('/api/platillos/:id', verificarToken, verificarRol(['administrador']),
     if (!platillo) return res.status(404).json({ error: 'Platillo no encontrado' });
 
     const { nombre, descripcion, categoria, precio, stock, receta } = req.body;
+    const recetaCandidata = Array.isArray(receta)
+        ? receta
+            .map((r) => ({
+                id_insumo: Number(r.id_insumo),
+                cantidad_requerida: Number(r.cantidad_requerida),
+            }))
+            .filter((r) => r.id_insumo > 0 && !isNaN(r.cantidad_requerida) && r.cantidad_requerida > 0)
+        : platillo.receta;
+    const stockCandidato = (stock !== undefined && !isNaN(Number(stock)) && Number(stock) >= 0)
+        ? Number(stock)
+        : Number(platillo.stock ?? 0);
+
+    if (stockCandidato > 0 && Array.isArray(recetaCandidata) && recetaCandidata.length > 0) {
+        const checkInsumos = validarInsumosReceta(
+            recetaCandidata,
+            nombre ? String(nombre).trim() : platillo.nombre,
+            stockCandidato
+        );
+        if (!checkInsumos.valido) {
+            return res.status(409).json({
+                error: `${checkInsumos.error} Máximo preparable con el inventario actual: ${checkInsumos.porcionesPosibles} porción(es).`
+            });
+        }
+    }
+
     if (nombre) {
         platillo.nombre = String(nombre).trim();
         platillo.Nombre = platillo.nombre;
@@ -819,12 +909,7 @@ app.patch('/api/platillos/:id', verificarToken, verificarRol(['administrador']),
         platillo.Disponible = platillo.disponible;
     }
     if (Array.isArray(receta)) {
-        platillo.receta = receta
-            .map((r) => ({
-                id_insumo: Number(r.id_insumo),
-                cantidad_requerida: Number(r.cantidad_requerida),
-            }))
-            .filter((r) => r.id_insumo > 0 && !isNaN(r.cantidad_requerida) && r.cantidad_requerida > 0);
+        platillo.receta = recetaCandidata;
     }
 
     registrarLog(req.usuario.nombre || 'Admin', 'EDITAR_PLATILLO', `Platillo actualizado: ${platillo.nombre} ($${platillo.precio}, stock: ${platillo.stock})`);
@@ -840,13 +925,23 @@ async function cambiarDisponibilidadPlatillo(req, res) {
     }
 
     const nuevoEstado = typeof req.body.disponible === 'boolean' ? req.body.disponible : !platillo.disponible;
+    if (nuevoEstado) {
+        const checkInsumos = validarInsumosReceta(platillo.receta, platillo.nombre, 1);
+        if (!checkInsumos.valido) {
+            return res.status(409).json({ error: checkInsumos.error });
+        }
+        const stockObjetivo = platillo.stock === 0 ? 10 : platillo.stock;
+        const stockCapado = Number.isFinite(checkInsumos.porcionesPosibles)
+            ? Math.min(stockObjetivo, checkInsumos.porcionesPosibles)
+            : stockObjetivo;
+        platillo.stock = stockCapado;
+        platillo.Stock = stockCapado;
+    }
+
     platillo.disponible = nuevoEstado;
     platillo.Disponible = nuevoEstado;
 
-    if (nuevoEstado && platillo.stock === 0) {
-        platillo.stock = 10;
-        platillo.Stock = 10;
-    } else if (!nuevoEstado) {
+    if (!nuevoEstado) {
         platillo.stock = 0;
         platillo.Stock = 0;
         estado.pedidos.forEach((ped) => {
@@ -1411,6 +1506,7 @@ app.patch('/api/inventario/:id', verificarToken, verificarRol(['administrador', 
         });
     }
 
+    sincronizarPlatillosSinInsumos(req.usuario.nombre || 'Admin');
     registrarLog(req.usuario.nombre || 'Admin', 'AJUSTE_INVENTARIO', `${insumo.nombre} actualizado a ${insumo.cantidad} ${insumo.unidad} (${motivo})`);
     emitirActualizacionTiempoReal('inventario:actualizado', { insumo });
     return res.json(insumo);

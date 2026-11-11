@@ -1277,6 +1277,14 @@ export default function VistaAdmin() {
                                                     const idP = pl.id_platillo || pl.Id_platillo;
                                                     const disp = pl.disponible ?? pl.Disponible;
                                                     const recetaItems = Array.isArray(pl.receta) ? pl.receta : [];
+                                                    const faltantes = recetaItems.filter((rec) => {
+                                                        const insObj = estado.inventario.find(
+                                                            (i) => Number(i.id_insumo) === Number(rec.id_insumo)
+                                                        );
+                                                        const stockDisp = Number(insObj?.cantidad ?? insObj?.stock ?? 0);
+                                                        return !insObj || stockDisp < Number(rec.cantidad_requerida || 0);
+                                                    });
+                                                    const faltaInsumo = faltantes.length > 0;
                                                     return (
                                                         <tr key={idP}>
                                                             <td>
@@ -1288,21 +1296,29 @@ export default function VistaAdmin() {
                                                                             const insObj = estado.inventario.find(
                                                                                 (i) => Number(i.id_insumo) === Number(rec.id_insumo)
                                                                             );
+                                                                            const stockDisp = Number(insObj?.cantidad ?? insObj?.stock ?? 0);
+                                                                            const esInsuficiente = !insObj || stockDisp < Number(rec.cantidad_requerida || 0);
                                                                             return (
                                                                                 <span
                                                                                     key={rec.id_insumo}
                                                                                     style={{
                                                                                         fontSize: 10.5,
-                                                                                        background: '#f1f5f9',
-                                                                                        color: '#334155',
-                                                                                        border: '1px solid #cbd5e1',
+                                                                                        background: esInsuficiente ? '#fef2f2' : '#f1f5f9',
+                                                                                        color: esInsuficiente ? '#b91c1c' : '#334155',
+                                                                                        border: `1px solid ${esInsuficiente ? '#fca5a5' : '#cbd5e1'}`,
                                                                                         borderRadius: 6,
                                                                                         padding: '1px 6px',
                                                                                         fontWeight: 600,
                                                                                     }}
+                                                                                    title={
+                                                                                        esInsuficiente
+                                                                                            ? `Stock insuficiente (disponible: ${stockDisp} ${insObj?.unidad || 'u'})`
+                                                                                            : `Disponible: ${stockDisp} ${insObj?.unidad || 'u'}`
+                                                                                    }
                                                                                 >
                                                                                     {insObj ? insObj.nombre : `Insumo #${rec.id_insumo}`}: {rec.cantidad_requerida}{' '}
                                                                                     {insObj?.unidad || 'u'}
+                                                                                    {esInsuficiente ? ' (sin stock)' : ''}
                                                                                 </span>
                                                                             );
                                                                         })}
@@ -1319,7 +1335,12 @@ export default function VistaAdmin() {
                                                                     type="button"
                                                                     className={`toggle-switch ${disp ? 'on' : ''}`}
                                                                     onClick={() => toggleDisponibilidadPlatillo(idP, disp)}
-                                                                    title="Alternar disponibilidad"
+                                                                    style={!disp && faltaInsumo ? { opacity: 0.45 } : undefined}
+                                                                    title={
+                                                                        !disp && faltaInsumo
+                                                                            ? 'Insumos insuficientes en inventario para activar este platillo'
+                                                                            : 'Alternar disponibilidad'
+                                                                    }
                                                                 >
                                                                     <span className="toggle-knob" />
                                                                 </button>

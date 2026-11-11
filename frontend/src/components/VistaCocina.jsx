@@ -795,6 +795,21 @@ export default function VistaCocina() {
                                     {estado.platillos.map((pl) => {
                                         const idP = pl.id_platillo || pl.Id_platillo;
                                         const disp = pl.disponible ?? pl.Disponible;
+                                        const recetaItems = Array.isArray(pl.receta) ? pl.receta : [];
+                                        const nombresFaltantes = recetaItems
+                                            .filter((rec) => {
+                                                const insObj = (estado.inventario || []).find(
+                                                    (i) => Number(i.id_insumo) === Number(rec.id_insumo)
+                                                );
+                                                return !insObj || Number(insObj.cantidad ?? insObj.stock ?? 0) < Number(rec.cantidad_requerida || 0);
+                                            })
+                                            .map((rec) => {
+                                                const insObj = (estado.inventario || []).find(
+                                                    (i) => Number(i.id_insumo) === Number(rec.id_insumo)
+                                                );
+                                                return insObj ? insObj.nombre : `Insumo #${rec.id_insumo}`;
+                                            });
+                                        const faltaInsumo = nombresFaltantes.length > 0;
                                         return (
                                             <div className="availability-pill-card" key={idP}>
                                                 <div>
@@ -810,13 +825,21 @@ export default function VistaCocina() {
                                                     >
                                                         {disp
                                                             ? `${pl.stock ?? pl.Stock} ${pl.unidad_stock || 'porciones'} disponibles`
-                                                            : 'Agotado — oculto en menú'}
+                                                            : faltaInsumo
+                                                              ? `Sin insumos suficientes (${nombresFaltantes.join(', ')})`
+                                                              : 'Agotado — oculto en menú'}
                                                     </div>
                                                 </div>
                                                 <button
                                                     type="button"
                                                     className={`toggle-switch ${disp ? 'on' : ''}`}
                                                     onClick={() => toggleDisponibilidadPlatillo(idP, disp)}
+                                                    style={!disp && faltaInsumo ? { opacity: 0.45 } : undefined}
+                                                    title={
+                                                        !disp && faltaInsumo
+                                                            ? `Insumos insuficientes: ${nombresFaltantes.join(', ')}`
+                                                            : 'Alternar disponibilidad'
+                                                    }
                                                 >
                                                     <span className="toggle-knob" />
                                                 </button>
