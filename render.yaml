@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: orderly-pos
+    runtime: node
+    plan: free
+    healthCheckPath: /api/health
+    buildCommand: npm --prefix frontend install --include=dev && npm --prefix frontend run build && npm --prefix backend install
+    startCommand: npm --prefix backend start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true

@@ -151,3 +151,18 @@ Diseñado en color naranja oscuro (`#6B3A07`):
 - **Inventario y alertas en tiempo real**: Registre reabastecimientos o mermas; el sistema muestra alertas visuales y sonoras en tiempo real cuando un insumo entra en nivel bajo o crítico y permite consultar el directorio de proveedores.
 - **Reportes de ventas y Cierre de caja**: En **Reportes de ventas** filtre transacciones por método de pago o mesero y exporte a CSV; en **Cierre de caja** revise el resumen esperado y capture el conteo físico de efectivo para el arqueo final del turno.
 - **Usuarios, contraseñas y respaldos**: Gestione cuentas activas, restablezca contraseñas, configure la conexión MySQL Server 9.4.0 / Workbench 8.0, genere respaldos firmados con HMAC-SHA256 y obtenga el código QR de acceso móvil.
+
+---
+
+## 4. Despliegue Gratuito en la Nube (Render — Sin Descargar Nada)
+
+Para que sus compañeros o docentes prueben Orderly POS desde cualquier navegador o celular sin instalar programas ni configurar redes locales, el proyecto incluye el archivo **`render.yaml`** listo para **Render** (plan gratuito con **HTTPS automático**, WebSockets en tiempo real y compatibilidad completa para instalar la PWA en Android e iOS):
+
+1. Cree una cuenta gratuita en [render.com](https://render.com/) e inicie sesión con su cuenta de **GitHub**.
+2. En el panel de Render haga clic en **New + → Blueprint** (o **Web Service**) y seleccione su repositorio **`DavAlmaraz/Orderly-POS`**.
+3. Render detectará automáticamente **`render.yaml`** (compilará el frontend con `vite build` y arrancará el servidor unificado de `backend`). Solo presione **Deploy** / **Apply**.
+4. Al terminar, Render le dará un enlace público seguro (por ejemplo `https://orderly-pos.onrender.com`) para compartirlo directamente o escanear su código QR desde cualquier teléfono.
+
+> **Notas del plan gratuito de Render**:
+> - Si pasan más de 15 minutos sin tráfico, el servicio gratuito entra en reposo y tarda entre 30 y 50 segundos en despertar al recibir la primera visita.
+> - Si no conecta una base de datos MySQL externa en la nube, el sistema operará en modo resiliente en memoria y los datos de prueba volverán a su estado inicial cada vez que el servicio se reinicie.

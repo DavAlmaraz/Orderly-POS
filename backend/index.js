@@ -31,6 +31,7 @@ const {
 } = db;
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // Cabeceras de Seguridad HTTP estrictas (Protección contra Clickjacking, Sniffing, XSS e inyección)
@@ -1790,12 +1791,31 @@ function obtenerIpsRedLocal() {
     return resultados;
 }
 
-app.get('/api/sistema/red-qr', async (_req, res) => {
+app.get('/api/health', (_req, res) => {
+    return res.json({ ok: true, status: 'up' });
+});
+
+app.get('/api/sistema/red-qr', async (req, res) => {
     try {
+        const hostHeader = (req.get('host') || '').trim();
+        const soloHost = hostHeader.split(':')[0];
+        const esHostLocal =
+            !soloHost ||
+            soloHost === 'localhost' ||
+            soloHost === '127.0.0.1' ||
+            /^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(soloHost);
+
         const ips = obtenerIpsRedLocal();
         const ipPrincipal = ips[0]?.ip || '127.0.0.1';
-        const urlPrincipal = `http://${ipPrincipal}:${PORT}/login`;
-        const urlsAlternativas = ips.map((item) => `http://${item.ip}:${PORT}/login`);
+        const urlPublicaRender = process.env.RENDER_EXTERNAL_URL
+            ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/login`
+            : (!esHostLocal ? `${req.protocol}://${hostHeader}/login` : null);
+
+        const urlPrincipal = urlPublicaRender || `http://${ipPrincipal}:${PORT}/login`;
+        const urlsAlternativas = urlPublicaRender
+            ? [urlPublicaRender]
+            : ips.map((item) => `http://${item.ip}:${PORT}/login`);
+
         const qrSvg = await QRCode.toString(urlPrincipal, {
             type: 'svg',
             width: 210,
@@ -1803,7 +1823,7 @@ app.get('/api/sistema/red-qr', async (_req, res) => {
             color: { dark: '#111827', light: '#ffffff' }
         });
         return res.json({
-            ipPrincipal,
+            ipPrincipal: urlPublicaRender ? soloHost : ipPrincipal,
             puerto: PORT,
             urlPrincipal,
             urlsAlternativas,
