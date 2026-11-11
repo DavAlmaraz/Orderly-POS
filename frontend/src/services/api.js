@@ -39,12 +39,10 @@ export function guardarSesionActiva({ token, rol, usuario }) {
         iniciales: (rol || 'OR').slice(0, 2).toUpperCase()
     };
     const sesionObj = { token, rol: usr.rol, usuario: usr };
-    // Guardamos en sessionStorage (independiente por pestaña para probar Mesera, Cocina y Admin al mismo tiempo sin error 403)
     sessionStorage.setItem(STORAGE_KEY_SESION, JSON.stringify(sesionObj));
     sessionStorage.setItem('token', token);
     sessionStorage.setItem('rol', usr.rol);
     sessionStorage.setItem('nombre', usr.nombre);
-    // También guardamos en localStorage para compatibilidad
     localStorage.setItem('token', token);
     localStorage.setItem('rol', usr.rol);
     localStorage.setItem('nombre', usr.nombre);
@@ -61,11 +59,79 @@ export function limpiarSesionActiva() {
     localStorage.removeItem('nombre');
 }
 
+// ============================================================================
+// SERVICIO DE NOTIFICACIONES PUSH (WEB NOTIFICATION API + AUDIO ALERTA)
+// ============================================================================
+
+export function obtenerEstadoPermisoPush() {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+        return 'unsupported';
+    }
+    return window.Notification.permission; // 'granted' | 'denied' | 'default'
+}
+
+export async function solicitarPermisoNotificacionesPush() {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+        return 'unsupported';
+    }
+    if (window.Notification.permission === 'granted') {
+        return 'granted';
+    }
+    try {
+        const permiso = await window.Notification.requestPermission();
+        return permiso;
+    } catch {
+        return window.Notification.permission;
+    }
+}
+
+export function reproducirSonidoPushCritico(severidad = 'critico') {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = severidad === 'critico' ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(severidad === 'critico' ? 740 : 587.33, ctx.currentTime);
+        osc.frequency.setValueAtTime(severidad === 'critico' ? 987.77 : 880, ctx.currentTime + 0.14);
+        gain.gain.setValueAtTime(0.11, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.48);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+    } catch {
+        // Silenciar si el navegador requiere interacción previa
+    }
+}
+
+export function dispararNotificacionPushNavegador({ titulo, mensaje, tag = 'orderly-push', severidad = 'critico' }) {
+    reproducirSonidoPushCritico(severidad);
+    if (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted') {
+        try {
+            const notif = new window.Notification(titulo || 'Orderly POS — Alerta Crítica', {
+                body: mensaje || '',
+                icon: '/favicon.svg',
+                tag: `${tag}-${Date.now()}`,
+                requireInteraction: severidad === 'critico',
+            });
+            setTimeout(() => {
+                try { notif.close(); } catch {}
+            }, 10000);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+    return false;
+}
+
 const api = axios.create({
     baseURL: API_BASE_URL,
 });
 
-// Interceptor para inyectar el token JWT automáticamente (priorizando sessionStorage de la pestaña actual)
+// Interceptor para inyectar el token JWT automáticamente
 api.interceptors.request.use((config) => {
     const sesion = obtenerSesionActiva();
     const token = sesion?.token || sessionStorage.getItem('token') || localStorage.getItem('token');

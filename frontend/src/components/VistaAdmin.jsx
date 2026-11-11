@@ -1,7 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import api, { SOCKET_URL, obtenerSesionActiva, limpiarSesionActiva } from '../services/api';
+import api, {
+    SOCKET_URL,
+    obtenerSesionActiva,
+    limpiarSesionActiva,
+    obtenerEstadoPermisoPush,
+    solicitarPermisoNotificacionesPush,
+    dispararNotificacionPushNavegador,
+} from '../services/api';
 
 const PROVEEDORES_DIRECTORIO = [
     {
@@ -51,8 +58,23 @@ export default function VistaAdmin() {
     // Filtros interactivos para reducir ruido visual
     const [filtroTransacciones, setFiltroTransacciones] = useState('Todas');
     const [filtroComandasAdmin, setFiltroComandasAdmin] = useState('activas');
+    const [filtroDesempenoRol, setFiltroDesempenoRol] = useState('todos');
     const [mesaInspeccionada, setMesaInspeccionada] = useState(null);
     const [platilloEditando, setPlatilloEditando] = useState(null);
+
+    // Notificaciones Push y Alertas Críticas en tiempo real
+    const [permisoPush, setPermisoPush] = useState(() => obtenerEstadoPermisoPush());
+    const [alertasPushFlotantes, setAlertasPushFlotantes] = useState([]);
+
+    // Configuración MySQL Server 9.4.0 & MySQL Workbench 8.0
+    const [formMySQL, setFormMySQL] = useState({
+        host: 'localhost',
+        port: 3306,
+        user: 'root',
+        password: '',
+        database: 'OrderlyDB',
+    });
+    const [probandoMySQL, setProbandoMySQL] = useState(false);
 
     // Modal de Proveedores
     const [modalProveedoresAbierto, setModalProveedoresAbierto] = useState(false);
@@ -116,10 +138,80 @@ export default function VistaAdmin() {
         }, 3800);
     }
 
+    function mostrarAlertaPushEnPantalla(alerta) {
+        if (!alerta) return;
+        const idPopup = alerta.id || Date.now() + Math.random();
+        const item = {
+            ...alerta,
+            id: idPopup,
+            severidad: alerta.severidad || alerta.tipo || 'critico',
+        };
+        dispararNotificacionPushNavegador({
+            titulo: item.titulo,
+            mensaje: item.mensaje,
+            tag: `admin-push-${idPopup}`,
+            severidad: item.severidad,
+        });
+        setAlertasPushFlotantes((prev) => {
+            if (prev.some((p) => p.titulo === item.titulo && p.mensaje === item.mensaje)) return prev;
+            return [item, ...prev].slice(0, 4);
+        });
+        setTimeout(() => {
+            setAlertasPushFlotantes((prev) => prev.filter((p) => p.id !== idPopup));
+        }, 12000);
+    }
+
+    async function activarNotificacionesPush() {
+        const res = await solicitarPermisoNotificacionesPush();
+        setPermisoPush(res);
+        if (res === 'granted') {
+            dispararNotificacionPushNavegador({
+                titulo: '🔔 Notificaciones Push Activadas',
+                mensaje: 'Recibirás alertas inmediatas de insumos bajos/críticos, platillos agotados y comandas urgentes.',
+                severidad: 'ok',
+            });
+            mostrarToast('Notificaciones Push del navegador activadas correctamente.', 'ok');
+        } else {
+            mostrarToast('Alertas Push en pantalla y sonido activadas en este dispositivo.', 'alerta');
+        }
+    }
+
+    async function enviarBarridoPushCriticas() {
+        try {
+            const res = await api.post('/notificaciones/push-criticas', { rol_destino: 'todos' });
+            mostrarToast(res.data?.mensaje || 'Alerta Push enviada a todos los dispositivos.', 'ok');
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'Error al emitir notificación Push', 'critico');
+        }
+    }
+
+    async function guardarYConectarMySQL(e) {
+        e.preventDefault();
+        setProbandoMySQL(true);
+        try {
+            const res = await api.post('/sistema/mysql-config', formMySQL);
+            mostrarToast(res.data?.mensaje || 'Configuración MySQL aplicada.', res.data?.conectado ? 'ok' : 'alerta');
+            cargarEstadoAdmin();
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'Error al configurar MySQL', 'critico');
+        } finally {
+            setProbandoMySQL(false);
+        }
+    }
+
     const cargarEstadoAdmin = async () => {
         try {
             const res = await api.get('/estado');
             setEstado(res.data);
+            if (res.data?.conexionMySQL) {
+                setFormMySQL((prev) => ({
+                    ...prev,
+                    host: res.data.conexionMySQL.host || 'localhost',
+                    port: res.data.conexionMySQL.port || 3306,
+                    user: res.data.conexionMySQL.user || 'root',
+                    database: res.data.conexionMySQL.database || 'OrderlyDB',
+                }));
+            }
         } catch (err) {
             if (err.response?.status === 401) {
                 limpiarSesionActiva();
@@ -142,6 +234,10 @@ export default function VistaAdmin() {
 
         socket.on('estado:actualizado', (snapshot) => {
             setEstado(snapshot);
+        });
+
+        socket.on('alerta:push_critica', (alerta) => {
+            mostrarAlertaPushEnPantalla(alerta);
         });
 
         socket.on('pedido_cancelado', (data) => {
@@ -450,6 +546,47 @@ export default function VistaAdmin() {
 
     return (
         <div translate="no">
+            {alertasPushFlotantes.length > 0 && (
+                <div className="emergente-overlay-stack">
+                    {alertasPushFlotantes.map((alerta) => (
+                        <div
+                            key={alerta.id}
+                            className={`emergente-popup-card ${
+                                alerta.severidad === 'critico' ? 'tipo-critico' : 'tipo-alerta'
+                            }`}
+                        >
+                            <div className="emergente-popup-header">
+                                <span className="emergente-popup-tag">NOTIFICACIÓN PUSH CRÍTICA</span>
+                                <span style={{ fontSize: 11.5, color: '#6b7280', fontWeight: 600 }}>{alerta.hora}</span>
+                            </div>
+                            <div className="emergente-popup-title">{alerta.titulo}</div>
+                            <div className="emergente-popup-msg">{alerta.mensaje}</div>
+                            <div className="emergente-popup-actions">
+                                <button
+                                    type="button"
+                                    className="primary-dark-btn"
+                                    style={{ padding: '5px 11px', fontSize: 12 }}
+                                    onClick={() => {
+                                        cambiarVista('inventario');
+                                        setAlertasPushFlotantes((prev) => prev.filter((p) => p.id !== alerta.id));
+                                    }}
+                                >
+                                    Revisar inventario →
+                                </button>
+                                <button
+                                    type="button"
+                                    className="secondary-outline-btn"
+                                    style={{ padding: '5px 11px', fontSize: 12 }}
+                                    onClick={() => setAlertasPushFlotantes((prev) => prev.filter((p) => p.id !== alerta.id))}
+                                >
+                                    Entendido
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {toast && (
                 <div
                     style={{
@@ -603,6 +740,15 @@ export default function VistaAdmin() {
                         <div className="top-header-badges">
                             <button
                                 type="button"
+                                className={`pill-badge ${permisoPush === 'granted' ? 'green' : 'amber'}`}
+                                style={{ border: '1px solid #cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                                onClick={activarNotificacionesPush}
+                                title="Activar notificaciones Push del sistema para alertas de insumos bajos y comandas críticas"
+                            >
+                                <span>🔔 {permisoPush === 'granted' ? 'Push Activo' : 'Activar Push'}</span>
+                            </button>
+                            <button
+                                type="button"
                                 className="pill-badge green"
                                 style={{ border: '1px solid #bbf7d0', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                                 onClick={abrirModalEditarTurnoActivo}
@@ -641,14 +787,25 @@ export default function VistaAdmin() {
                                                     .join(', ')}
                                             </span>
                                         </div>
-                                        <button
-                                            type="button"
-                                            className="secondary-outline-btn"
-                                            style={{ padding: '6px 12px', fontSize: 12, borderColor: '#fca5a5', color: '#991b1b' }}
-                                            onClick={() => abrirModalProveedores('')}
-                                        >
-                                            Llamar a proveedores →
-                                        </button>
+                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                            <button
+                                                type="button"
+                                                className="primary-dark-btn"
+                                                style={{ padding: '6px 12px', fontSize: 12, background: '#991b1b' }}
+                                                onClick={enviarBarridoPushCriticas}
+                                                title="Disparar notificación Push instantánea a Meseras, Cocina y Administración"
+                                            >
+                                                🔔 Enviar Push de Alerta Crítica
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="secondary-outline-btn"
+                                                style={{ padding: '6px 12px', fontSize: 12, borderColor: '#fca5a5', color: '#991b1b' }}
+                                                onClick={() => abrirModalProveedores('')}
+                                            >
+                                                Llamar a proveedores →
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 
@@ -840,6 +997,159 @@ export default function VistaAdmin() {
                                                 ))}
                                             </tbody>
                                         </table>
+                                    </div>
+                                </div>
+
+                                {/* NUEVO APARTADO: DESEMPEÑO DEL PERSONAL EN RESUMEN DEL DÍA */}
+                                <div className="panel-card" style={{ marginTop: 18 }}>
+                                    <div className="panel-card-header">
+                                        <div>
+                                            <div className="panel-card-title" style={{ marginBottom: 2 }}>
+                                                Desempeño del personal en turno
+                                            </div>
+                                            <div style={{ fontSize: 12.5, color: '#64748b' }}>
+                                                Evaluación operativa en tiempo real de productividad, mesas atendidas, tiempos de servicio y ventas por colaborador
+                                            </div>
+                                        </div>
+                                        <div className="category-tabs" style={{ margin: 0 }}>
+                                            {[
+                                                { id: 'todos', label: 'Todo el personal' },
+                                                { id: 'mesera', label: 'Salón / Meseras' },
+                                                { id: 'cocina', label: 'Cocina (KDS)' },
+                                                { id: 'administrador', label: 'Administración' },
+                                            ].map((f) => (
+                                                <button
+                                                    key={f.id}
+                                                    type="button"
+                                                    className={`cat-tab ${filtroDesempenoRol === f.id ? 'active' : ''}`}
+                                                    onClick={() => setFiltroDesempenoRol(f.id)}
+                                                >
+                                                    {f.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="staff-performance-grid" style={{ marginBottom: 16 }}>
+                                        {(estado.desempenoPersonal || [])
+                                            .filter((col) => filtroDesempenoRol === 'todos' || col.rol === filtroDesempenoRol)
+                                            .map((col) => (
+                                                <div key={col.id_usuario} className="staff-perf-card">
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                            <div
+                                                                style={{
+                                                                    width: 38,
+                                                                    height: 38,
+                                                                    borderRadius: '50%',
+                                                                    background:
+                                                                        col.rol === 'administrador'
+                                                                            ? '#6B3A07'
+                                                                            : col.rol === 'cocina'
+                                                                            ? '#1F5C35'
+                                                                            : '#2B3A4A',
+                                                                    color: '#ffffff',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    fontWeight: 700,
+                                                                    fontSize: 13,
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            >
+                                                                {col.iniciales}
+                                                            </div>
+                                                            <div>
+                                                                <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{col.nombre}</div>
+                                                                <div style={{ fontSize: 11.5, color: '#64748b' }}>
+                                                                    {col.area} · {col.tipo_turno} ({col.turno})
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <span className={`pill-badge ${col.eficienciaPct >= 94 ? 'green' : 'amber'}`}>
+                                                            {col.calificacion} · {col.eficienciaPct}%
+                                                        </span>
+                                                    </div>
+
+                                                    <div
+                                                        style={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns: 'repeat(3, 1fr)',
+                                                            gap: 8,
+                                                            marginTop: 12,
+                                                            background: '#f8fafc',
+                                                            padding: '8px 10px',
+                                                            borderRadius: 8,
+                                                            border: '1px solid #e2e8f0',
+                                                        }}
+                                                    >
+                                                        <div>
+                                                            <div style={{ fontSize: 10.5, color: '#64748b', textTransform: 'uppercase' }}>
+                                                                {col.rol === 'cocina' ? 'Comandas listas' : 'Mesas atendidas'}
+                                                            </div>
+                                                            <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>
+                                                                {col.mesasAtendidasHoy}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: 10.5, color: '#64748b', textTransform: 'uppercase' }}>
+                                                                {col.rol === 'mesera' ? 'Ventas cobradas' : 'Volumen turno'}
+                                                            </div>
+                                                            <div style={{ fontWeight: 700, fontSize: 15, color: '#15803d' }}>
+                                                                ${Number(col.ventasGeneradas || 0).toLocaleString('en-US')}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: 10.5, color: '#64748b', textTransform: 'uppercase' }}>
+                                                                Tiempo prom.
+                                                            </div>
+                                                            <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>
+                                                                {col.tiempoPromedioMin} min
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ marginTop: 10 }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginBottom: 4 }}>
+                                                            <span style={{ color: '#475569' }}>{col.detalleActividad}</span>
+                                                            <strong style={{ color: '#0f172a' }}>Eficiencia {col.eficienciaPct}%</strong>
+                                                        </div>
+                                                        <div className="hbar-track" style={{ height: 7 }}>
+                                                            <div
+                                                                className="hbar-fill"
+                                                                style={{
+                                                                    width: `${col.eficienciaPct}%`,
+                                                                    background: col.eficienciaPct >= 94 ? '#16a34a' : '#d97706',
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                                                        <span style={{ fontSize: 11.5, color: '#64748b' }}>
+                                                            Ticket prom.: <strong>${col.ticketPromedio}</strong> · Activas: <strong>{col.comandasActivas}</strong>
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            className="secondary-outline-btn"
+                                                            style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                                            onClick={() =>
+                                                                setUsuarioTurnoEditando({
+                                                                    id_usuario: col.id_usuario,
+                                                                    nombre: col.nombre,
+                                                                    rol: col.rol,
+                                                                    tipo_turno: col.tipo_turno || 'Turno completo',
+                                                                    hora_inicio: col.hora_inicio || '09:00',
+                                                                    hora_fin: col.hora_fin || '17:00',
+                                                                    turno: col.turno || '09:00 - 17:00',
+                                                                })
+                                                            }
+                                                        >
+                                                            Ajustar turno ✎
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
                                     </div>
                                 </div>
                             </>
@@ -1603,28 +1913,127 @@ export default function VistaAdmin() {
 
                         {vistaAdmin === 'configuracion' && (
                             <div className="split-workspace">
-                                <div className="panel-card">
-                                    <div className="panel-card-title">Respaldo y recuperación de base de datos</div>
-                                    <p style={{ fontSize: 13.5, color: '#4b5563', marginBottom: 14 }}>
-                                        El sistema genera respaldos automáticos diarios para resguardar las ventas, comandas e inventario del restaurante.
-                                    </p>
-                                    <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
-                                        <div>
-                                            <strong>Motor activo:</strong> {estado.motorBaseDatos}
+                                <div>
+                                    <div className="panel-card" style={{ marginBottom: 16 }}>
+                                        <div className="panel-card-header">
+                                            <div>
+                                                <div className="panel-card-title" style={{ marginBottom: 2 }}>
+                                                    Conexión Local — MySQL Workbench 8.0 & MySQL Server 9.4.0
+                                                </div>
+                                                <div style={{ fontSize: 12.5, color: '#64748b' }}>
+                                                    Autenticación nativa <code>caching_sha2_password</code> · Esquema ACID <code>OrderlyDB</code>
+                                                </div>
+                                            </div>
+                                            <span className={`pill-badge ${estado.conexionMySQL?.conectado ? 'green' : 'amber'}`}>
+                                                {estado.conexionMySQL?.conectado
+                                                    ? `MySQL ${estado.conexionMySQL?.versionServidor || '9.4.0'} Conectado`
+                                                    : 'Modo Resiliente ACID Activo'}
+                                            </span>
                                         </div>
-                                        <div style={{ marginTop: 6 }}>
-                                            <strong>Último respaldo generado:</strong> {estado.ultimoRespaldo?.archivo} (
-                                            {estado.ultimoRespaldo?.fecha} a las {estado.ultimoRespaldo?.hora})
+
+                                        <form onSubmit={guardarYConectarMySQL} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                                                <div>
+                                                    <label className="form-field-label">Host local (MySQL Workbench 8.0):</label>
+                                                    <input
+                                                        type="text"
+                                                        value={formMySQL.host}
+                                                        onChange={(e) => setFormMySQL({ ...formMySQL, host: e.target.value })}
+                                                        className="form-input-clean"
+                                                        placeholder="localhost o 127.0.0.1"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="form-field-label">Puerto TCP:</label>
+                                                    <input
+                                                        type="number"
+                                                        value={formMySQL.port}
+                                                        onChange={(e) => setFormMySQL({ ...formMySQL, port: Number(e.target.value) })}
+                                                        className="form-input-clean"
+                                                        placeholder="3306"
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                                <div>
+                                                    <label className="form-field-label">Usuario MySQL Server 9.4.0:</label>
+                                                    <input
+                                                        type="text"
+                                                        value={formMySQL.user}
+                                                        onChange={(e) => setFormMySQL({ ...formMySQL, user: e.target.value })}
+                                                        className="form-input-clean"
+                                                        placeholder="root"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="form-field-label">Base de datos:</label>
+                                                    <input
+                                                        type="text"
+                                                        value={formMySQL.database}
+                                                        onChange={(e) => setFormMySQL({ ...formMySQL, database: e.target.value })}
+                                                        className="form-input-clean"
+                                                        placeholder="OrderlyDB"
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="form-field-label">Contraseña de tu instancia local MySQL:</label>
+                                                <input
+                                                    type="password"
+                                                    value={formMySQL.password}
+                                                    onChange={(e) => setFormMySQL({ ...formMySQL, password: e.target.value })}
+                                                    className="form-input-clean"
+                                                    placeholder="Ingresa la contraseña root de tu MySQL Workbench 8.0"
+                                                />
+                                            </div>
+
+                                            <button type="submit" className="primary-dark-btn" disabled={probandoMySQL}>
+                                                {probandoMySQL
+                                                    ? 'Conectando y migrando tablas en MySQL 9.4.0...'
+                                                    : 'Probar conexión, guardar en .env y migrar OrderlyDB'}
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <div className="panel-card">
+                                        <div className="panel-card-title">Respaldo firmado y recuperación de base de datos</div>
+                                        <p style={{ fontSize: 13.5, color: '#4b5563', marginBottom: 14 }}>
+                                            El sistema genera respaldos automáticos diarios firmados con HMAC-SHA256 y sin exponer contraseñas para resguardar las ventas, comandas e inventario del restaurante.
+                                        </p>
+                                        <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
+                                            <div>
+                                                <strong>Motor activo:</strong> {estado.motorBaseDatos}
+                                            </div>
+                                            <div style={{ marginTop: 6 }}>
+                                                <strong>Último respaldo generado:</strong> {estado.ultimoRespaldo?.archivo} (
+                                                {estado.ultimoRespaldo?.fecha} a las {estado.ultimoRespaldo?.hora})
+                                            </div>
+                                            {estado.ultimoRespaldo?.firmaIntegridad && (
+                                                <div style={{ marginTop: 6, color: '#15803d', fontWeight: 600 }}>
+                                                    Firma de integridad: {estado.ultimoRespaldo.firmaIntegridad}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                            <button type="button" className="primary-dark-btn" onClick={dispararRespaldoManual}>
+                                                Generar respaldo firmado ahora
+                                            </button>
+                                            <button type="button" className="secondary-outline-btn" onClick={enviarBarridoPushCriticas}>
+                                                🔔 Probar Notificación Push Crítica
+                                            </button>
                                         </div>
                                     </div>
-                                    <button type="button" className="primary-dark-btn" onClick={dispararRespaldoManual}>
-                                        Generar respaldo ahora
-                                    </button>
                                 </div>
 
                                 <div className="panel-card">
-                                    <div className="panel-card-title">Bitácora de actividad del sistema</div>
-                                    {estado.logsAuditoria.slice(0, 12).map((log) => (
+                                    <div className="panel-card-title">Bitácora de auditoría y seguridad del sistema</div>
+                                    {estado.logsAuditoria.slice(0, 14).map((log) => (
                                         <div
                                             key={log.id_log}
                                             style={{ padding: '8px 0', borderBottom: '1px solid #f3f4f6', fontSize: 12.5 }}
@@ -2134,7 +2543,7 @@ export default function VistaAdmin() {
                     <div className="modal-card" style={{ maxWidth: 620 }}>
                         <div className="panel-card-header">
                             <span className="panel-card-title" style={{ marginBottom: 0 }}>
-                                Directorio de Proveedores — Restaurante Dios Padre
+                                Directorio de Proveedores — Orderly POS
                             </span>
                             <button
                                 type="button"

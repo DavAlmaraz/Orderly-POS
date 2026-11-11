@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ORDERLY — Sistema de Punto de Venta (Restaurante Dios Padre)
+   ORDERLY POS — Sistema de Gestión Restaurantera y Punto de Venta
    Paleta de Colores Oficial (Orderlyv6.pdf):
    - Administrador: #6B3A07
    - Cocina / Chef: #1F5C35 / #4D7A5D
@@ -1136,12 +1136,35 @@ body {
 }
 
 /* ==========================================================================
-   MEDIA QUERIES — DISEÑO 100% RESPONSIVO (TABLET Y MÓVIL CON MENÚ HAMBURGUESA)
+   DESEMPEÑO DEL PERSONAL — TARJETAS DE EVALUACIÓN EN RESUMEN DEL DÍA
+   ========================================================================== */
+.staff-performance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.staff-perf-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 15px 16px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.staff-perf-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+}
+
+/* ==========================================================================
+   MEDIA QUERIES — DISEÑO 100% RESPONSIVO (ESCRITORIO, TABLET Y CUALQUIER MÓVIL)
    ========================================================================== */
 @media (max-width: 1100px) {
   .kpi-grid,
   .kitchen-orders-grid,
-  .availability-grid {
+  .availability-grid,
+  .staff-performance-grid {
     grid-template-columns: repeat(2, 1fr);
   }
   .charts-row,
@@ -1160,14 +1183,16 @@ body {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 260px;
+    width: 268px;
+    max-width: 82vw;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
     transform: translateX(0);
+    z-index: 1050;
   }
 
   .sidebar.closed {
-    width: 260px;
-    transform: translateX(-100%);
+    width: 268px;
+    transform: translateX(-105%);
     box-shadow: none;
   }
 
@@ -1175,8 +1200,8 @@ body {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.5);
-    z-index: 900;
+    background: rgba(15, 23, 42, 0.52);
+    z-index: 1000;
   }
 
   .sidebar-close-mobile {
@@ -1186,23 +1211,65 @@ body {
   }
 
   .top-header {
-    padding: 12px 16px;
+    padding: 11px 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .top-header-badges {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .top-header-badges > * {
+    flex-shrink: 0;
   }
 
   .content-container {
-    padding: 16px;
+    padding: 14px;
+  }
+
+  .panel-card {
+    padding: 15px 14px;
+  }
+
+  .panel-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .category-tabs {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cat-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .inv-item-row {
     grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
+
+  .staff-performance-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 600px) {
   .kpi-grid,
   .kitchen-orders-grid,
-  .availability-grid {
+  .availability-grid,
+  .staff-performance-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1212,10 +1279,73 @@ body {
   }
 
   .top-header-title {
-    font-size: 15.5px;
+    font-size: 15px;
+    line-height: 1.25;
   }
 
   .hbar-row {
-    grid-template-columns: 110px 1fr 32px;
+    grid-template-columns: 105px 1fr 30px;
+    font-size: 12px;
+  }
+
+  .hourly-chart {
+    gap: 6px;
+    height: 150px;
+  }
+
+  .hourly-amount {
+    font-size: 10px;
+  }
+
+  .alert-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .modal-overlay {
+    padding: 10px;
+    align-items: flex-end;
+  }
+
+  .modal-card {
+    padding: 16px 14px;
+    border-radius: 14px 14px 10px 10px;
+    max-height: 90vh;
+  }
+
+  .emergente-overlay-stack {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-width: none;
+  }
+
+  .menu-item-card {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+  }
+
+  .kds-actions-row {
+    flex-direction: column;
+  }
+
+  .kds-actions-row button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px) {
+  .tables-map-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .content-container {
+    padding: 10px;
+  }
+
+  .kpi-value {
+    font-size: 21px;
   }
 }

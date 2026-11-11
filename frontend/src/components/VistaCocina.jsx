@@ -1,7 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import api, { SOCKET_URL, obtenerSesionActiva, limpiarSesionActiva } from '../services/api';
+import api, {
+    SOCKET_URL,
+    obtenerSesionActiva,
+    limpiarSesionActiva,
+    obtenerEstadoPermisoPush,
+    solicitarPermisoNotificacionesPush,
+    dispararNotificacionPushNavegador,
+} from '../services/api';
 
 export default function VistaCocina() {
     const navigate = useNavigate();
@@ -15,6 +22,22 @@ export default function VistaCocina() {
     const [platillosMarcadosAvance, setPlatillosMarcadosAvance] = useState({});
     const [toast, setToast] = useState(null);
     const [notificacionesEmergentes, setNotificacionesEmergentes] = useState([]);
+    const [permisoPush, setPermisoPush] = useState(() => obtenerEstadoPermisoPush());
+
+    async function activarPushCocina() {
+        const res = await solicitarPermisoNotificacionesPush();
+        setPermisoPush(res);
+        if (res === 'granted') {
+            dispararNotificacionPushNavegador({
+                titulo: '🔔 Notificaciones Push KDS Activadas',
+                mensaje: 'Recibirás alertas instantáneas de comandas urgentes, notas de alergia e insumos críticos.',
+                severidad: 'ok',
+            });
+            mostrarToast('Notificaciones Push de Cocina activadas.', 'ok');
+        } else {
+            mostrarToast('Alertas sonoras y emergentes activas en pantalla.', 'alerta');
+        }
+    }
 
     function cambiarVista(nuevaVista) {
         setVistaCocina(nuevaVista);
@@ -54,6 +77,12 @@ export default function VistaCocina() {
     function lanzarNotificacionEmergente(notif) {
         if (!notif) return;
         reproducirTonoAviso();
+        dispararNotificacionPushNavegador({
+            titulo: notif.titulo,
+            mensaje: notif.mensaje,
+            tag: `cocina-push-${notif.id || Date.now()}`,
+            severidad: notif.tipo || notif.severidad || 'alerta',
+        });
         const idPopup = notif.id || Date.now() + Math.random();
         const item = { ...notif, id: idPopup };
         setNotificacionesEmergentes((prev) => {
@@ -115,6 +144,15 @@ export default function VistaCocina() {
         socket.on('notificacion:emergente', (notif) => {
             if (!notif.rol_destino || notif.rol_destino === 'cocina' || notif.rol_destino === 'todos') {
                 lanzarNotificacionEmergente(notif);
+            }
+        });
+
+        socket.on('alerta:push_critica', (alerta) => {
+            if (!alerta.rol_destino || alerta.rol_destino === 'cocina' || alerta.rol_destino === 'todos') {
+                lanzarNotificacionEmergente({
+                    ...alerta,
+                    tipo: alerta.severidad || 'critico',
+                });
             }
         });
 
@@ -377,6 +415,15 @@ export default function VistaCocina() {
                         </div>
 
                         <div className="top-header-badges">
+                            <button
+                                type="button"
+                                className={`pill-badge ${permisoPush === 'granted' ? 'green' : 'amber'}`}
+                                style={{ border: '1px solid #cbd5e1', cursor: 'pointer' }}
+                                onClick={activarPushCocina}
+                                title="Activar notificaciones Push del sistema para alertas de insumos bajos y comandas"
+                            >
+                                🔔 {permisoPush === 'granted' ? 'Push Activo' : 'Activar Push'}
+                            </button>
                             {vistaCocina === 'inventario_cocina' ? (
                                 <>
                                     <span className="pill-badge red">

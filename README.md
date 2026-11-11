@@ -1,6 +1,6 @@
-# Orderly-POS — Sistema de Punto de Venta (Restaurante Dios Padre)
+# Orderly-POS — Sistema de Gestión Restaurantera y Punto de Venta
 
-Sistema integral de Punto de Venta (POS) y Monitor de Cocina en Tiempo Real (KDS) desarrollado para el **Restaurante Dios Padre**.
+Sistema integral de Punto de Venta (POS) y Monitor de Cocina en Tiempo Real (KDS) diseñado para la operación integral de restaurantes.
 
 **Autores:**
 - Almaraz Remigio Jesús David

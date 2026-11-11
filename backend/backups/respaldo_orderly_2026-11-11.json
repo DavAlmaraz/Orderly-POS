@@ -1,0 +1,674 @@
+{
+  "fecha": "2026-11-11",
+  "hora": "7:40 a.m.",
+  "motor": "MySQL Server 9.4.0 / Workbench 8.0 (OrderlyDB · Espejo Resiliente ACID Activo)",
+  "platillos": [
+    {
+      "Id_platillo": 1,
+      "id_platillo": 1,
+      "Nombre": "Enchiladas verdes",
+      "nombre": "Enchiladas verdes",
+      "Descripcion": "Orden de 3 enchiladas con pollo bañadas en salsa de tomatillo y chile verde con crema",
+      "descripcion": "Orden de 3 enchiladas con pollo bañadas en salsa de tomatillo y chile verde con crema",
+      "Categoria": "Plato fuerte",
+      "categoria": "Plato fuerte",
+      "Precio": 95,
+      "precio": 95,
+      "Stock": 18,
+      "stock": 18,
+      "unidad_stock": "porciones",
+      "Disponible": true,
+      "disponible": true,
+      "tiempo_prep_min": 12,
+      "receta": [
+        {
+          "id_insumo": 1,
+          "cantidad_requerida": 0.15
+        },
+        {
+          "id_insumo": 3,
+          "cantidad_requerida": 0.12
+        },
+        {
+          "id_insumo": 4,
+          "cantidad_requerida": 0.06
+        },
+        {
+          "id_insumo": 9,
+          "cantidad_requerida": 0.05
+        }
+      ]
+    },
+    {
+      "Id_platillo": 2,
+      "id_platillo": 2,
+      "Nombre": "Caldo de res",
+      "nombre": "Caldo de res",
+      "Descripcion": "Plato servido con arroz, verduras frescas y tortillas",
+      "descripcion": "Plato servido con arroz, verduras frescas y tortillas",
+      "Categoria": "Plato fuerte",
+      "categoria": "Plato fuerte",
+      "Precio": 120,
+      "precio": 120,
+      "Stock": 12,
+      "stock": 12,
+      "unidad_stock": "porciones",
+      "Disponible": true,
+      "disponible": true,
+      "tiempo_prep_min": 15,
+      "receta": [
+        {
+          "id_insumo": 2,
+          "cantidad_requerida": 0.25
+        }
+      ]
+    },
+    {
+      "Id_platillo": 3,
+      "id_platillo": 3,
+      "Nombre": "Mole rojo",
+      "nombre": "Mole rojo",
+      "Descripcion": "Pieza de pollo bañada en mole rojo artesanal de la casa",
+      "descripcion": "Pieza de pollo bañada en mole rojo artesanal de la casa",
+      "Categoria": "Plato fuerte",
+      "categoria": "Plato fuerte",
+      "Precio": 110,
+      "precio": 110,
+      "Stock": 0,
+      "stock": 0,
+      "unidad_stock": "porciones",
+      "Disponible": false,
+      "disponible": false,
+      "tiempo_prep_min": 18,
+      "receta": [
+        {
+          "id_insumo": 3,
+          "cantidad_requerida": 0.2
+        },
+        {
+          "id_insumo": 5,
+          "cantidad_requerida": 0.12
+        }
+      ]
+    },
+    {
+      "Id_platillo": 4,
+      "id_platillo": 4,
+      "Nombre": "Pollo a la plancha",
+      "nombre": "Pollo a la plancha",
+      "Descripcion": "Filete de pechuga de pollo a la plancha con guarnición fresca",
+      "descripcion": "Filete de pechuga de pollo a la plancha con guarnición fresca",
+      "Categoria": "Plato fuerte",
+      "categoria": "Plato fuerte",
+      "Precio": 95,
+      "precio": 95,
+      "Stock": 7,
+      "stock": 7,
+      "unidad_stock": "porciones",
+      "Disponible": true,
+      "disponible": true,
+      "tiempo_prep_min": 12,
+      "receta": [
+        {
+          "id_insumo": 3,
+          "cantidad_requerida": 0.2
+        },
+        {
+          "id_insumo": 8,
+          "cantidad_requerida": 0.03
+        }
+      ]
+    },
+    {
+      "Id_platillo": 5,
+      "id_platillo": 5,
+      "Nombre": "Sopa de lima",
+      "nombre": "Sopa de lima",
+      "Descripcion": "Sopa tradicional ligera con tiras de tortilla crujiente y pollo",
+      "descripcion": "Sopa tradicional ligera con tiras de tortilla crujiente y pollo",
+      "Categoria": "Entradas",
+      "categoria": "Entradas",
+      "Precio": 70,
+      "precio": 70,
+      "Stock": 9,
+      "stock": 9,
+      "unidad_stock": "porciones",
+      "Disponible": true,
+      "disponible": true,
+      "tiempo_prep_min": 8,
+      "receta": [
+        {
+          "id_insumo": 1,
+          "cantidad_requerida": 0.08
+        },
+        {
+          "id_insumo": 3,
+          "cantidad_requerida": 0.08
+        }
+      ]
+    },
+    {
+      "Id_platillo": 6,
+      "id_platillo": 6,
+      "Nombre": "Agua de horchata",
+      "nombre": "Agua de horchata",
+      "Descripcion": "Agua fresca artesanal de arroz con canela (vaso 500 ml)",
+      "descripcion": "Agua fresca artesanal de arroz con canela (vaso 500 ml)",
+      "Categoria": "Bebidas",
+      "categoria": "Bebidas",
+      "Precio": 30,
+      "precio": 30,
+      "Stock": 24,
+      "stock": 24,
+      "unidad_stock": "vasos",
+      "Disponible": true,
+      "disponible": true,
+      "tiempo_prep_min": 2,
+      "receta": [
+        {
+          "id_insumo": 6,
+          "cantidad_requerida": 0.35
+        }
+      ]
+    },
+    {
+      "Id_platillo": 7,
+      "id_platillo": 7,
+      "Nombre": "Agua de jamaica",
+      "nombre": "Agua de jamaica",
+      "Descripcion": "Infusión natural de flor de jamaica (vaso 500 ml)",
+      "descripcion": "Infusión natural de flor de jamaica (vaso 500 ml)",
+      "Categoria": "Bebidas",
+      "categoria": "Bebidas",
+      "Precio": 35,
+      "precio": 35,
+      "Stock": 18,
+      "stock": 18,
+      "unidad_stock": "vasos",
+      "Disponible": true,
+      "disponible": true,
+      "tiempo_prep_min": 2,
+      "receta": [
+        {
+          "id_insumo": 7,
+          "cantidad_requerida": 0.35
+        }
+      ]
+    },
+    {
+      "Id_platillo": 8,
+      "id_platillo": 8,
+      "Nombre": "Flan napolitano",
+      "nombre": "Flan napolitano",
+      "descripcion": "Postre casero de flan horneado con caramelo",
+      "Descripcion": "Postre casero de flan horneado con caramelo",
+      "Categoria": "Postres",
+      "categoria": "Postres",
+      "Precio": 55,
+      "precio": 55,
+      "Stock": 6,
+      "stock": 6,
+      "unidad_stock": "porciones",
+      "Disponible": true,
+      "disponible": true,
+      "tiempo_prep_min": 5,
+      "receta": [
+        {
+          "id_insumo": 9,
+          "cantidad_requerida": 0.04
+        }
+      ]
+    }
+  ],
+  "inventario": [
+    {
+      "id_insumo": 1,
+      "nombre": "Tortillas",
+      "categoria_insumo": "principal",
+      "cantidad": 12,
+      "cantidad_maxima": 18,
+      "minimo_alerta": 3,
+      "unidad": "kg"
+    },
+    {
+      "id_insumo": 2,
+      "nombre": "Res",
+      "categoria_insumo": "principal",
+      "cantidad": 8,
+      "cantidad_maxima": 12,
+      "minimo_alerta": 2.5,
+      "unidad": "kg"
+    },
+    {
+      "id_insumo": 3,
+      "nombre": "Pollo",
+      "categoria_insumo": "principal",
+      "cantidad": 1.2,
+      "cantidad_maxima": 10,
+      "minimo_alerta": 2,
+      "unidad": "kg"
+    },
+    {
+      "id_insumo": 4,
+      "nombre": "Chile verde",
+      "categoria_insumo": "principal",
+      "cantidad": 0.8,
+      "cantidad_maxima": 5,
+      "minimo_alerta": 1.5,
+      "unidad": "kg"
+    },
+    {
+      "id_insumo": 5,
+      "nombre": "Mole",
+      "categoria_insumo": "principal",
+      "cantidad": 0.5,
+      "cantidad_maxima": 6,
+      "minimo_alerta": 1,
+      "unidad": "lt"
+    },
+    {
+      "id_insumo": 6,
+      "nombre": "Horchata",
+      "categoria_insumo": "secundario",
+      "cantidad": 5,
+      "cantidad_maxima": 8,
+      "minimo_alerta": 1.5,
+      "unidad": "lt"
+    },
+    {
+      "id_insumo": 7,
+      "nombre": "Jamaica",
+      "categoria_insumo": "secundario",
+      "cantidad": 4.5,
+      "cantidad_maxima": 8,
+      "minimo_alerta": 1.5,
+      "unidad": "lt"
+    },
+    {
+      "id_insumo": 8,
+      "nombre": "Aceite",
+      "categoria_insumo": "secundario",
+      "cantidad": 3,
+      "cantidad_maxima": 5,
+      "minimo_alerta": 1,
+      "unidad": "lt"
+    },
+    {
+      "id_insumo": 9,
+      "nombre": "Crema",
+      "categoria_insumo": "secundario",
+      "cantidad": 0.9,
+      "cantidad_maxima": 4,
+      "minimo_alerta": 1.2,
+      "unidad": "kg"
+    }
+  ],
+  "pedidos": [
+    {
+      "Id_pedido": 101,
+      "id_pedido": 101,
+      "numero_mesa": 2,
+      "mesa": 2,
+      "personas": 4,
+      "Id_usuario": 2,
+      "id_usuario": 2,
+      "nombre_mesera": "Maria",
+      "Estado": "pendiente",
+      "estado": "pendiente",
+      "Total": 285,
+      "total": 285,
+      "nota_cocina": "Nota: sin cebolla en el caldo",
+      "hora_recepcion": "9:23 am",
+      "minutos_espera": 18,
+      "detalles": [
+        {
+          "id_detalle": 1,
+          "Id_platillo": 1,
+          "id_platillo": 1,
+          "nombre": "Enchiladas verdes",
+          "Nombre": "Enchiladas verdes",
+          "precio": 95,
+          "cantidad": 2,
+          "Cantidad": 2,
+          "subtotal": 190,
+          "Subtotal": 190,
+          "estado_item": "activo"
+        },
+        {
+          "id_detalle": 2,
+          "Id_platillo": 4,
+          "id_platillo": 4,
+          "nombre": "Pollo a la plancha",
+          "Nombre": "Pollo a la plancha",
+          "precio": 95,
+          "cantidad": 1,
+          "Cantidad": 1,
+          "subtotal": 95,
+          "Subtotal": 95,
+          "estado_item": "activo"
+        }
+      ]
+    },
+    {
+      "Id_pedido": 102,
+      "id_pedido": 102,
+      "numero_mesa": 4,
+      "mesa": 4,
+      "personas": 2,
+      "Id_usuario": 2,
+      "id_usuario": 2,
+      "nombre_mesera": "Maria",
+      "Estado": "pendiente",
+      "estado": "pendiente",
+      "Total": 310,
+      "total": 310,
+      "nota_cocina": "Sin cebolla",
+      "hora_recepcion": "9:36 am",
+      "minutos_espera": 5,
+      "detalles": [
+        {
+          "id_detalle": 3,
+          "Id_platillo": 1,
+          "id_platillo": 1,
+          "nombre": "Enchiladas verdes",
+          "Nombre": "Enchiladas verdes",
+          "precio": 95,
+          "cantidad": 2,
+          "Cantidad": 2,
+          "subtotal": 190,
+          "Subtotal": 190,
+          "estado_item": "activo"
+        },
+        {
+          "id_detalle": 4,
+          "Id_platillo": 2,
+          "id_platillo": 2,
+          "nombre": "Caldo de res",
+          "Nombre": "Caldo de res",
+          "precio": 120,
+          "cantidad": 1,
+          "Cantidad": 1,
+          "subtotal": 120,
+          "Subtotal": 120,
+          "estado_item": "activo"
+        },
+        {
+          "id_detalle": 5,
+          "Id_platillo": 3,
+          "id_platillo": 3,
+          "nombre": "Mole rojo",
+          "Nombre": "Mole rojo",
+          "precio": 110,
+          "cantidad": 1,
+          "Cantidad": 1,
+          "subtotal": 110,
+          "Subtotal": 110,
+          "estado_item": "agotado_eliminado"
+        }
+      ]
+    },
+    {
+      "Id_pedido": 103,
+      "id_pedido": 103,
+      "numero_mesa": 8,
+      "mesa": 8,
+      "personas": 5,
+      "Id_usuario": 4,
+      "id_usuario": 4,
+      "nombre_mesera": "Ana L.",
+      "Estado": "pendiente",
+      "estado": "pendiente",
+      "Total": 470,
+      "total": 470,
+      "nota_cocina": "",
+      "hora_recepcion": "9:40 am",
+      "minutos_espera": 1,
+      "detalles": [
+        {
+          "id_detalle": 6,
+          "Id_platillo": 2,
+          "id_platillo": 2,
+          "nombre": "Caldo de res",
+          "Nombre": "Caldo de res",
+          "precio": 120,
+          "cantidad": 3,
+          "Cantidad": 3,
+          "subtotal": 360,
+          "Subtotal": 360,
+          "estado_item": "activo"
+        },
+        {
+          "id_detalle": 7,
+          "Id_platillo": 8,
+          "id_platillo": 8,
+          "nombre": "Flan napolitano",
+          "Nombre": "Flan napolitano",
+          "precio": 55,
+          "cantidad": 2,
+          "Cantidad": 2,
+          "subtotal": 110,
+          "Subtotal": 110,
+          "estado_item": "activo"
+        }
+      ]
+    },
+    {
+      "Id_pedido": 104,
+      "id_pedido": 104,
+      "numero_mesa": 6,
+      "mesa": 6,
+      "personas": 3,
+      "Id_usuario": 2,
+      "id_usuario": 2,
+      "nombre_mesera": "Maria",
+      "Estado": "pendiente",
+      "estado": "pendiente",
+      "Total": 235,
+      "total": 235,
+      "nota_cocina": "",
+      "hora_recepcion": "9:39 am",
+      "minutos_espera": 2,
+      "detalles": [
+        {
+          "id_detalle": 8,
+          "Id_platillo": 4,
+          "id_platillo": 4,
+          "nombre": "Pollo a la plancha",
+          "Nombre": "Pollo a la plancha",
+          "precio": 95,
+          "cantidad": 1,
+          "Cantidad": 1,
+          "subtotal": 95,
+          "Subtotal": 95,
+          "estado_item": "activo"
+        },
+        {
+          "id_detalle": 9,
+          "Id_platillo": 5,
+          "id_platillo": 5,
+          "nombre": "Sopa de lima",
+          "Nombre": "Sopa de lima",
+          "precio": 70,
+          "cantidad": 2,
+          "Cantidad": 2,
+          "subtotal": 140,
+          "Subtotal": 140,
+          "estado_item": "activo"
+        }
+      ]
+    },
+    {
+      "Id_pedido": 105,
+      "id_pedido": 105,
+      "numero_mesa": 3,
+      "mesa": 3,
+      "personas": 3,
+      "Id_usuario": 2,
+      "id_usuario": 2,
+      "nombre_mesera": "Maria",
+      "Estado": "preparado",
+      "estado": "preparado",
+      "Total": 490,
+      "total": 490,
+      "nota_cocina": "Listo y servido en mesa — pendiente de cobro",
+      "hora_recepcion": "9:09 am",
+      "minutos_espera": 32,
+      "detalles": [
+        {
+          "id_detalle": 10,
+          "Id_platillo": 2,
+          "id_platillo": 2,
+          "nombre": "Caldo de res",
+          "Nombre": "Caldo de res",
+          "precio": 120,
+          "cantidad": 2,
+          "Cantidad": 2,
+          "subtotal": 240,
+          "Subtotal": 240,
+          "estado_item": "activo"
+        },
+        {
+          "id_detalle": 11,
+          "Id_platillo": 1,
+          "id_platillo": 1,
+          "nombre": "Enchiladas verdes",
+          "Nombre": "Enchiladas verdes",
+          "precio": 95,
+          "cantidad": 2,
+          "Cantidad": 2,
+          "subtotal": 190,
+          "Subtotal": 190,
+          "estado_item": "activo"
+        },
+        {
+          "id_detalle": 12,
+          "Id_platillo": 6,
+          "id_platillo": 6,
+          "nombre": "Agua de horchata",
+          "Nombre": "Agua de horchata",
+          "precio": 30,
+          "cantidad": 2,
+          "Cantidad": 2,
+          "subtotal": 60,
+          "Subtotal": 60,
+          "estado_item": "activo"
+        }
+      ]
+    },
+    {
+      "Id_pedido": 106,
+      "id_pedido": 106,
+      "numero_mesa": 7,
+      "mesa": 7,
+      "personas": 2,
+      "Id_usuario": 2,
+      "id_usuario": 2,
+      "nombre_mesera": "Maria",
+      "Estado": "preparado",
+      "estado": "preparado",
+      "Total": 220,
+      "total": 220,
+      "nota_cocina": "Listo y servido en mesa — pendiente de cobro",
+      "hora_recepcion": "9:16 am",
+      "minutos_espera": 25,
+      "detalles": [
+        {
+          "id_detalle": 13,
+          "Id_platillo": 1,
+          "id_platillo": 1,
+          "nombre": "Enchiladas verdes",
+          "Nombre": "Enchiladas verdes",
+          "precio": 95,
+          "cantidad": 2,
+          "Cantidad": 2,
+          "subtotal": 190,
+          "Subtotal": 190,
+          "estado_item": "activo"
+        },
+        {
+          "id_detalle": 14,
+          "Id_platillo": 6,
+          "id_platillo": 6,
+          "nombre": "Agua de horchata",
+          "Nombre": "Agua de horchata",
+          "precio": 30,
+          "cantidad": 1,
+          "Cantidad": 1,
+          "subtotal": 30,
+          "Subtotal": 30,
+          "estado_item": "activo"
+        }
+      ]
+    }
+  ],
+  "pagos": [
+    {
+      "id_pago": 1,
+      "id_pedido": 98,
+      "numero_mesa": "Mesa 07",
+      "resumen_platillos": "Enchiladas ×2, Agua ×1",
+      "mesera": "Maria",
+      "metodo": "Débito",
+      "monto": 220,
+      "concepto_division": "Cuenta completa",
+      "hora": "9:38 am"
+    },
+    {
+      "id_pago": 2,
+      "id_pedido": 99,
+      "numero_mesa": "Mesa 04",
+      "resumen_platillos": "Caldo ×1, Sopa ×1",
+      "mesera": "Maria",
+      "metodo": "Crédito",
+      "monto": 190,
+      "concepto_division": "Cuenta completa",
+      "hora": "9:30 am"
+    },
+    {
+      "id_pago": 3,
+      "id_pedido": 100,
+      "numero_mesa": "Mesa 02",
+      "resumen_platillos": "Enchiladas ×3",
+      "mesera": "Ana L.",
+      "metodo": "Efectivo",
+      "monto": 285,
+      "concepto_division": "Cuenta completa",
+      "hora": "9:20 am"
+    }
+  ],
+  "usuarios": [
+    {
+      "id_usuario": 1,
+      "nombre": "J. David",
+      "rol": "administrador",
+      "turno": "08:00 - 18:00",
+      "tipo_turno": "Turno completo",
+      "activo": true
+    },
+    {
+      "id_usuario": 2,
+      "nombre": "Maria",
+      "rol": "mesera",
+      "turno": "09:00 - 17:00",
+      "tipo_turno": "Turno completo",
+      "activo": true
+    },
+    {
+      "id_usuario": 3,
+      "nombre": "Roberto",
+      "rol": "cocina",
+      "turno": "08:00 - 16:00",
+      "tipo_turno": "Turno completo",
+      "activo": true
+    },
+    {
+      "id_usuario": 4,
+      "nombre": "Ana L.",
+      "rol": "mesera",
+      "turno": "09:00 - 17:00",
+      "tipo_turno": "Turno completo",
+      "activo": true
+    }
+  ],
+  "firma_hmac_sha256": "d1bccf9c2404e6dd466756c43725f789de5399a8e7d66ca5d88180f5cafdf142"
+}

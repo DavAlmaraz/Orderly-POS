@@ -116,7 +116,7 @@ export default function Login() {
                             fontWeight: 400,
                         }}
                     >
-                        Restaurante Dios Padre · Punto de Venta
+                        Sistema de Gestión Restaurantera · Punto de Venta
                     </p>
                 </div>
 
@@ -239,7 +239,7 @@ export default function Login() {
                     textAlign: 'center',
                 }}
             >
-                Orderly POS · Restaurante Dios Padre
+                Orderly POS · Sistema de Gestión Restaurantera
             </div>
         </div>
     );

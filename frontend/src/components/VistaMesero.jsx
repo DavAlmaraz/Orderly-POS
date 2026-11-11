@@ -1,7 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import api, { SOCKET_URL, obtenerSesionActiva, limpiarSesionActiva } from '../services/api';
+import api, {
+    SOCKET_URL,
+    obtenerSesionActiva,
+    limpiarSesionActiva,
+    obtenerEstadoPermisoPush,
+    solicitarPermisoNotificacionesPush,
+    dispararNotificacionPushNavegador,
+} from '../services/api';
 
 const MAX_PERSONAS_MESA = 12;
 
@@ -32,6 +39,22 @@ export default function VistaMesero() {
     const [filtroMapaMesas, setFiltroMapaMesas] = useState('todas');
     const [toast, setToast] = useState(null);
     const [notificacionesEmergentes, setNotificacionesEmergentes] = useState([]);
+    const [permisoPush, setPermisoPush] = useState(() => obtenerEstadoPermisoPush());
+
+    async function activarPushMesera() {
+        const res = await solicitarPermisoNotificacionesPush();
+        setPermisoPush(res);
+        if (res === 'granted') {
+            dispararNotificacionPushNavegador({
+                titulo: '🔔 Notificaciones Push de Salón Activadas',
+                mensaje: 'Recibirás avisos inmediatos cuando tus comandas estén listas, un platillo se agote o haya alertas críticas.',
+                severidad: 'ok',
+            });
+            mostrarToast('Notificaciones Push de Salón activadas.', 'ok');
+        } else {
+            mostrarToast('Alertas emergentes y sonido activos en este dispositivo.', 'alerta');
+        }
+    }
 
     // Estado para Nueva Comanda (Ilustración 6)
     const [mesaSeleccionadaNueva, setMesaSeleccionadaNueva] = useState(1);
@@ -105,6 +128,12 @@ export default function VistaMesero() {
     function lanzarNotificacionEmergente(notif) {
         if (!notif) return;
         reproducirTonoAviso();
+        dispararNotificacionPushNavegador({
+            titulo: notif.titulo,
+            mensaje: notif.mensaje,
+            tag: `mesera-push-${notif.id || Date.now()}`,
+            severidad: notif.tipo || notif.severidad || 'ok',
+        });
         const idPopup = notif.id || Date.now() + Math.random();
         const item = { ...notif, id: idPopup };
         setNotificacionesEmergentes((prev) => {
@@ -167,6 +196,15 @@ export default function VistaMesero() {
         socket.on('notificacion:emergente', (notif) => {
             if (!notif.rol_destino || notif.rol_destino === 'mesera' || notif.rol_destino === 'todos') {
                 lanzarNotificacionEmergente(notif);
+            }
+        });
+
+        socket.on('alerta:push_critica', (alerta) => {
+            if (!alerta.rol_destino || alerta.rol_destino === 'mesera' || alerta.rol_destino === 'todos') {
+                lanzarNotificacionEmergente({
+                    ...alerta,
+                    tipo: alerta.severidad || 'critico',
+                });
             }
         });
 
@@ -833,6 +871,15 @@ export default function VistaMesero() {
                         </div>
 
                         <div className="top-header-badges">
+                            <button
+                                type="button"
+                                className={`pill-badge ${permisoPush === 'granted' ? 'green' : 'amber'}`}
+                                style={{ border: '1px solid #cbd5e1', cursor: 'pointer' }}
+                                onClick={activarPushMesera}
+                                title="Activar notificaciones Push del sistema para alertas de comandas e insumos"
+                            >
+                                🔔 {permisoPush === 'granted' ? 'Push Activo' : 'Activar Push'}
+                            </button>
                             {vistaMesera === 'mapa_mesas' && (
                                 <>
                                     <button
