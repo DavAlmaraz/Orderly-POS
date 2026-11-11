@@ -60,6 +60,78 @@ const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }
 });
 
+const MAX_PERSONAS_POR_MESA = 12;
+
+function validarRangoPersonasMesa(personas) {
+    const num = Number(personas);
+    if (isNaN(num) || !Number.isInteger(num) || num < 1 || num > MAX_PERSONAS_POR_MESA) {
+        return {
+            valido: false,
+            error: `El número de personas por mesa debe estar entre 1 y un máximo de ${MAX_PERSONAS_POR_MESA} comensales.`
+        };
+    }
+    return { valido: true, valor: num };
+}
+
+function verificarStockPlatilloEInsumos(plat, cantidadSolicitada) {
+    if (!plat) {
+        return { valido: false, error: 'El platillo seleccionado no existe en el catálogo.' };
+    }
+    const disp = plat.disponible ?? plat.Disponible;
+    const stockActual = Number(plat.stock ?? plat.Stock ?? 0);
+    if (!disp || stockActual <= 0) {
+        return { valido: false, error: `El platillo "${plat.nombre || plat.Nombre}" se encuentra agotado (stock: 0).` };
+    }
+    if (cantidadSolicitada > stockActual) {
+        return {
+            valido: false,
+            error: `Stock insuficiente para "${plat.nombre || plat.Nombre}": solicita ${cantidadSolicitada}, pero solo hay ${stockActual} disponibles.`
+        };
+    }
+    if (Array.isArray(plat.receta) && plat.receta.length > 0) {
+        for (const ing of plat.receta) {
+            const insumo = estado.inventario.find((i) => i.id_insumo === Number(ing.id_insumo));
+            if (insumo) {
+                const requeridoTotal = Number((Number(ing.cantidad_requerida || 0) * cantidadSolicitada).toFixed(3));
+                if (insumo.cantidad < requeridoTotal) {
+                    return {
+                        valido: false,
+                        error: `Insumo insuficiente para preparar ${cantidadSolicitada}× "${plat.nombre}": requiere ${requeridoTotal} ${insumo.unidad} de ${insumo.nombre} (disponible: ${insumo.cantidad} ${insumo.unidad}).`
+                    };
+                }
+            }
+        }
+    }
+    return { valido: true };
+}
+
+function ajustarStockEInsumosDePlatillo(plat, deltaUnidades) {
+    if (!plat || !deltaUnidades) return;
+    // deltaUnidades > 0 significa que se consumen platillos (reducir stock/insumos)
+    // deltaUnidades < 0 significa que se devuelven platillos al inventario (restaurar stock/insumos)
+    const nuevoStock = Math.max(0, Number(plat.stock || 0) - deltaUnidades);
+    plat.stock = nuevoStock;
+    plat.Stock = nuevoStock;
+    plat.disponible = nuevoStock > 0;
+    plat.Disponible = nuevoStock > 0;
+
+    if (Array.isArray(plat.receta)) {
+        plat.receta.forEach((ing) => {
+            const insumo = estado.inventario.find((i) => i.id_insumo === Number(ing.id_insumo));
+            if (insumo) {
+                const deltaInsumo = Number(ing.cantidad_requerida || 0) * deltaUnidades;
+                const nuevaCant = Math.max(0, Number((insumo.cantidad - deltaInsumo).toFixed(3)));
+                insumo.cantidad = Number(nuevaCant.toFixed(2));
+            }
+        });
+    }
+
+    const vendidoEntry = estado.metricasDia.platillosVendidosHoy.find((v) => v.id_platillo === (plat.id_platillo || plat.Id_platillo));
+    if (vendidoEntry) {
+        vendidoEntry.cantidad = Math.max(0, vendidoEntry.cantidad + deltaUnidades);
+    }
+}
+
 function serializarUsuarioPublico(u) {
     const partes = String(u.nombre || 'U').trim().split(/\s+/);
     const iniciales = partes.length >= 2
@@ -72,7 +144,10 @@ function serializarUsuarioPublico(u) {
         usuario_login: u.usuario_login || u.nombre,
         rol: u.rol,
         activo: u.activo !== false,
-        turno: u.turno || '9am - 5pm',
+        turno: u.turno || '09:00 - 17:00',
+        tipo_turno: u.tipo_turno || 'Turno completo',
+        hora_inicio: u.hora_inicio || '09:00',
+        hora_fin: u.hora_fin || '17:00',
         iniciales
     };
 }
@@ -163,6 +238,8 @@ function obtenerSnapshotEstado() {
         logsAuditoria: estado.logsAuditoria,
         ultimoRespaldo: estado.ultimoRespaldo,
         motorBaseDatos: estado.motorBaseDatos,
+        turnoActivo: estado.turnoActivo,
+        maxPersonasPorMesa: MAX_PERSONAS_POR_MESA,
     };
 }
 
@@ -373,12 +450,21 @@ app.get('/api/platillos', verificarToken, verificarRol(['mesera', 'cocina', 'adm
 });
 
 app.post('/api/platillos', verificarToken, verificarRol(['administrador']), async (req, res) => {
-    const { nombre, descripcion, categoria, precio, stock, unidad_stock } = req.body;
-    if (!nombre || !precio) {
-        return res.status(400).json({ error: 'Nombre y precio son requeridos' });
+    const { nombre, descripcion, categoria, precio, stock, unidad_stock, receta } = req.body;
+    if (!nombre || !precio || Number(precio) <= 0) {
+        return res.status(400).json({ error: 'Nombre y un precio mayor a $0 son requeridos.' });
     }
+    const recetaLimpia = Array.isArray(receta)
+        ? receta
+            .map((r) => ({
+                id_insumo: Number(r.id_insumo),
+                cantidad_requerida: Number(r.cantidad_requerida),
+            }))
+            .filter((r) => r.id_insumo > 0 && !isNaN(r.cantidad_requerida) && r.cantidad_requerida > 0)
+        : [];
+
     const nuevoId = estado.platillos.reduce((max, p) => Math.max(max, p.id_platillo || p.Id_platillo || 0), 0) + 1;
-    const stockNum = Number(stock ?? 15);
+    const stockNum = Math.max(0, Number(stock ?? 15));
     const nuevoPlatillo = {
         Id_platillo: nuevoId,
         id_platillo: nuevoId,
@@ -396,10 +482,24 @@ app.post('/api/platillos', verificarToken, verificarRol(['administrador']), asyn
         Disponible: stockNum > 0,
         disponible: stockNum > 0,
         tiempo_prep_min: 12,
-        receta: []
+        receta: recetaLimpia
     };
+
+    if (estado.mysqlDisponible && recetaLimpia.length > 0) {
+        for (const r of recetaLimpia) {
+            await db.query(
+                'INSERT INTO Recetas_Platillo (Id_platillo, Id_insumo, Cantidad_requerida) VALUES (?, ?, ?)',
+                [nuevoId, r.id_insumo, r.cantidad_requerida]
+            ).catch(() => {});
+        }
+    }
+
     estado.platillos.push(nuevoPlatillo);
-    registrarLog(req.usuario.nombre || 'Admin', 'NUEVO_PLATILLO', `Platillo agregado: ${nombre} ($${precio})`);
+    registrarLog(
+        req.usuario.nombre || 'Admin',
+        'NUEVO_PLATILLO',
+        `Platillo agregado: ${nombre} ($${precio}) con ${recetaLimpia.length} insumo(s) en su receta`
+    );
     emitirActualizacionTiempoReal('platillo:creado', { platillo: nuevoPlatillo });
     res.status(201).json(nuevoPlatillo);
 });
@@ -409,7 +509,7 @@ app.patch('/api/platillos/:id', verificarToken, verificarRol(['administrador']),
     const platillo = estado.platillos.find((p) => (p.id_platillo || p.Id_platillo) === idPlatillo);
     if (!platillo) return res.status(404).json({ error: 'Platillo no encontrado' });
 
-    const { nombre, descripcion, categoria, precio, stock } = req.body;
+    const { nombre, descripcion, categoria, precio, stock, receta } = req.body;
     if (nombre) {
         platillo.nombre = String(nombre).trim();
         platillo.Nombre = platillo.nombre;
@@ -431,6 +531,14 @@ app.patch('/api/platillos/:id', verificarToken, verificarRol(['administrador']),
         platillo.Stock = Number(stock);
         platillo.disponible = platillo.stock > 0;
         platillo.Disponible = platillo.disponible;
+    }
+    if (Array.isArray(receta)) {
+        platillo.receta = receta
+            .map((r) => ({
+                id_insumo: Number(r.id_insumo),
+                cantidad_requerida: Number(r.cantidad_requerida),
+            }))
+            .filter((r) => r.id_insumo > 0 && !isNaN(r.cantidad_requerida) && r.cantidad_requerida > 0);
     }
 
     registrarLog(req.usuario.nombre || 'Admin', 'EDITAR_PLATILLO', `Platillo actualizado: ${platillo.nombre} ($${platillo.precio}, stock: ${platillo.stock})`);
@@ -510,7 +618,11 @@ app.get('/api/pedidos/pendientes', verificarToken, verificarRol(['cocina', 'admi
 app.post('/api/pedidos', verificarToken, verificarRol(['mesera', 'administrador']), async (req, res) => {
     try {
         const numeroMesa = Number(req.body.numero_mesa || req.body.mesa || 1);
-        const personas = Number(req.body.personas || 2);
+        const validacionPersonas = validarRangoPersonasMesa(req.body.personas ?? 2);
+        if (!validacionPersonas.valido) {
+            return res.status(400).json({ error: validacionPersonas.error });
+        }
+        const personas = validacionPersonas.valor;
         const nombreMesera = req.body.nombre_mesera || req.usuario?.nombre || 'Maria';
         const notaCocina = req.body.nota_cocina || '';
         const idUsuario = Number(req.body.id_usuario || req.usuario?.id || 2);
@@ -523,6 +635,26 @@ app.post('/api/pedidos', verificarToken, verificarRol(['mesera', 'administrador'
             return res.status(400).json({ error: 'Seleccione al menos un platillo para enviar la comanda.' });
         }
 
+        // FASE 1 (PRE-VALIDACIÓN ATÓMICA): Bloquear envío a cocina si CUALQUIER platillo no tiene stock o insumos suficientes
+        const acumuladoPorPlatillo = new Map();
+        for (const item of listaItems) {
+            const idPlat = Number(item.id_platillo || item.Id_platillo);
+            const cant = Number(item.cantidad || item.Cantidad || 0);
+            if (!idPlat || isNaN(cant) || cant <= 0) {
+                return res.status(400).json({ error: 'Cantidad de platillo inválida en la comanda.' });
+            }
+            acumuladoPorPlatillo.set(idPlat, (acumuladoPorPlatillo.get(idPlat) || 0) + cant);
+        }
+
+        for (const [idPlat, cantTotal] of acumuladoPorPlatillo.entries()) {
+            const plat = estado.platillos.find((p) => (p.id_platillo || p.Id_platillo) === idPlat);
+            const verificacion = verificarStockPlatilloEInsumos(plat, cantTotal);
+            if (!verificacion.valido) {
+                return res.status(400).json({ error: verificacion.error });
+            }
+        }
+
+        // FASE 2: Deducción de stock y de insumos de la receta
         const detalles = [];
         for (let idx = 0; idx < listaItems.length; idx++) {
             const item = listaItems[idx];
@@ -530,28 +662,7 @@ app.post('/api/pedidos', verificarToken, verificarRol(['mesera', 'administrador'
             const cant = Number(item.cantidad || item.Cantidad || 1);
             const plat = estado.platillos.find((p) => (p.id_platillo || p.Id_platillo) === idPlat);
 
-            if (plat) {
-                plat.stock = Math.max(0, plat.stock - cant);
-                plat.Stock = plat.stock;
-                if (plat.stock === 0) {
-                    plat.disponible = false;
-                    plat.Disponible = false;
-                }
-
-                if (Array.isArray(plat.receta)) {
-                    plat.receta.forEach((ing) => {
-                        const insumo = estado.inventario.find((i) => i.id_insumo === ing.id_insumo);
-                        if (insumo) {
-                            insumo.cantidad = Number(Math.max(0, insumo.cantidad - ing.cantidad_requerida * cant).toFixed(2));
-                        }
-                    });
-                }
-
-                const vendidoEntry = estado.metricasDia.platillosVendidosHoy.find((v) => v.id_platillo === idPlat);
-                if (vendidoEntry) {
-                    vendidoEntry.cantidad += cant;
-                }
-            }
+            ajustarStockEInsumosDePlatillo(plat, cant);
 
             const precioUnit = plat ? plat.precio : Number(item.Precio || item.precio || 95);
             const nombrePlat = plat ? plat.nombre : (item.Nombre || item.nombre || `Platillo #${idPlat}`);
@@ -579,8 +690,8 @@ app.post('/api/pedidos', verificarToken, verificarRol(['mesera', 'administrador'
         if (estado.mysqlDisponible) {
             try {
                 const [resPed] = await db.query(
-                    'INSERT INTO Pedidos (Id_usuario, Total, Estado) VALUES (?, ?, ?)',
-                    [idUsuario, totalCalculado, 'pendiente']
+                    'INSERT INTO Pedidos (Id_usuario, Numero_mesa, Personas, Nota_cocina, Total, Estado) VALUES (?, ?, ?, ?, ?, ?)',
+                    [idUsuario, numeroMesa, personas, notaCocina, totalCalculado, 'pendiente']
                 );
                 const idInsertado = resPed.insertId;
                 for (const det of detalles) {
@@ -600,9 +711,10 @@ app.post('/api/pedidos', verificarToken, verificarRol(['mesera', 'administrador'
 
         const horaActual = new Date().toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
 
-        if (pedidoActivo && req.body.items) {
+        if (pedidoActivo) {
             pedidoActivo.detalles.push(...detalles);
             if (notaCocina) pedidoActivo.nota_cocina = notaCocina;
+            pedidoActivo.personas = personas;
             pedidoActivo.estado = 'pendiente';
             pedidoActivo.Estado = 'pendiente';
             recalcularTotalPedido(pedidoActivo);
@@ -678,18 +790,14 @@ async function cancelarOrdenActiva(req, res) {
     const numMesa = Number(pedido.numero_mesa || pedido.mesa);
     const estabaPendiente = (pedido.estado || pedido.Estado) === 'pendiente';
 
-    // Si aún no se preparaba, reintegrar stock de platillos
+    // Si aún no se preparaba, reintegrar stock de platillos y sus insumos de receta al inventario
     if (estabaPendiente && Array.isArray(pedido.detalles)) {
         pedido.detalles.forEach((det) => {
             if (det.estado_item !== 'agotado_eliminado') {
                 const plat = estado.platillos.find((p) => (p.id_platillo || p.Id_platillo) === Number(det.id_platillo || det.Id_platillo));
-                if (plat) {
-                    plat.stock = Number(plat.stock || 0) + Number(det.cantidad || 1);
-                    plat.Stock = plat.stock;
-                    if (plat.stock > 0) {
-                        plat.disponible = true;
-                        plat.Disponible = true;
-                    }
+                const cantDevuelta = Number(det.cantidad || det.Cantidad || 1);
+                if (plat && cantDevuelta > 0) {
+                    ajustarStockEInsumosDePlatillo(plat, -cantDevuelta);
                 }
             }
         });
@@ -734,13 +842,22 @@ async function cancelarOrdenActiva(req, res) {
 app.delete('/api/pedidos/:id', verificarToken, verificarRol(['mesera', 'administrador', 'cocina']), cancelarOrdenActiva);
 app.post('/api/pedidos/:id/cancelar', verificarToken, verificarRol(['mesera', 'administrador', 'cocina']), cancelarOrdenActiva);
 
-// Modificar cantidades, eliminar platillo individual o actualizar nota de una comanda activa
+// Modificar cantidades, agregar/eliminar platillo individual o actualizar nota de una comanda activa (con validación y ajuste dinámico de stock/insumos)
 app.patch('/api/pedidos/:id', verificarToken, verificarRol(['mesera', 'administrador', 'cocina']), (req, res) => {
     const idPed = Number(req.params.id);
     const pedido = estado.pedidos.find((p) => (p.id_pedido || p.Id_pedido) === idPed);
     if (!pedido) return res.status(404).json({ error: 'Comanda no encontrada' });
 
-    const { nota_cocina, personas, nombre_mesera, id_detalle, delta_cantidad, eliminar_detalle } = req.body;
+    const { nota_cocina, personas, nombre_mesera, id_detalle, delta_cantidad, eliminar_detalle, agregar_platillo } = req.body;
+
+    if (personas !== undefined) {
+        const valPers = validarRangoPersonasMesa(personas);
+        if (!valPers.valido) {
+            return res.status(400).json({ error: valPers.error });
+        }
+        pedido.personas = valPers.valor;
+    }
+
     if (typeof nota_cocina === 'string') {
         pedido.nota_cocina = nota_cocina;
         agregarNotificacion(
@@ -751,25 +868,98 @@ app.patch('/api/pedidos/:id', verificarToken, verificarRol(['mesera', 'administr
             { numero_mesa: pedido.numero_mesa, id_pedido: pedido.id_pedido }
         );
     }
-    if (personas) pedido.personas = Number(personas);
+
     if (nombre_mesera) pedido.nombre_mesera = nombre_mesera;
 
-    if (id_detalle && eliminar_detalle) {
+    // Caso A: Agregar nuevo platillo directamente a una comanda activa
+    if (agregar_platillo && agregar_platillo.id_platillo) {
+        const idPlatNuevo = Number(agregar_platillo.id_platillo);
+        const cantNueva = Number(agregar_platillo.cantidad || 1);
+        if (isNaN(cantNueva) || cantNueva <= 0) {
+            return res.status(400).json({ error: 'La cantidad a agregar debe ser al menos 1.' });
+        }
+        const platObj = estado.platillos.find((p) => (p.id_platillo || p.Id_platillo) === idPlatNuevo);
+        const verif = verificarStockPlatilloEInsumos(platObj, cantNueva);
+        if (!verif.valido) {
+            return res.status(400).json({ error: verif.error });
+        }
+
+        ajustarStockEInsumosDePlatillo(platObj, cantNueva);
+
+        const existente = (pedido.detalles || []).find(
+            (d) => Number(d.id_platillo || d.Id_platillo) === idPlatNuevo && d.estado_item !== 'agotado_eliminado'
+        );
+        if (existente) {
+            existente.cantidad += cantNueva;
+            existente.Cantidad = existente.cantidad;
+            existente.subtotal = Number((existente.cantidad * existente.precio).toFixed(2));
+            existente.Subtotal = existente.subtotal;
+        } else {
+            const sub = Number((platObj.precio * cantNueva).toFixed(2));
+            pedido.detalles.push({
+                id_detalle: Date.now() + Math.floor(Math.random() * 1000),
+                Id_platillo: idPlatNuevo,
+                id_platillo: idPlatNuevo,
+                Nombre: platObj.nombre,
+                nombre: platObj.nombre,
+                precio: platObj.precio,
+                cantidad: cantNueva,
+                Cantidad: cantNueva,
+                subtotal: sub,
+                Subtotal: sub,
+                notas_item: agregar_platillo.notas_item || '',
+                estado_item: 'activo'
+            });
+        }
+    }
+    // Caso B: Eliminar un platillo de la comanda activa -> regresar su cantidad al inventario y recetas
+    else if (id_detalle && eliminar_detalle) {
         const detElim = (pedido.detalles || []).find((d) => d.id_detalle === Number(id_detalle));
-        pedido.detalles = (pedido.detalles || []).filter((d) => d.id_detalle !== Number(id_detalle));
         if (detElim) {
+            if (detElim.estado_item !== 'agotado_eliminado') {
+                const platObj = estado.platillos.find((p) => (p.id_platillo || p.Id_platillo) === Number(detElim.id_platillo || detElim.Id_platillo));
+                const cantDevolver = Number(detElim.cantidad || detElim.Cantidad || 0);
+                if (platObj && cantDevolver > 0) {
+                    ajustarStockEInsumosDePlatillo(platObj, -cantDevolver);
+                }
+            }
+            pedido.detalles = (pedido.detalles || []).filter((d) => d.id_detalle !== Number(id_detalle));
             agregarNotificacion(
                 'cocina',
                 `Platillo cancelado — Mesa ${String(pedido.numero_mesa).padStart(2, '0')}`,
-                `Se canceló "${detElim.nombre}" de la Mesa ${String(pedido.numero_mesa).padStart(2, '0')}.`,
+                `Se canceló "${detElim.nombre}" de la Mesa ${String(pedido.numero_mesa).padStart(2, '0')} y se reintegró al inventario.`,
                 'alerta',
                 { numero_mesa: pedido.numero_mesa, id_pedido: pedido.id_pedido }
             );
         }
-    } else if (id_detalle && typeof delta_cantidad === 'number') {
+    }
+    // Caso C: Incrementar o disminuir cantidad (+ / -) en una comanda activa
+    else if (id_detalle && typeof delta_cantidad === 'number' && delta_cantidad !== 0) {
         const det = (pedido.detalles || []).find((d) => d.id_detalle === Number(id_detalle));
-        if (det) {
-            det.cantidad = Math.max(0, det.cantidad + delta_cantidad);
+        if (!det) {
+            return res.status(404).json({ error: 'Elemento de comanda no encontrado.' });
+        }
+        const platObj = estado.platillos.find((p) => (p.id_platillo || p.Id_platillo) === Number(det.id_platillo || det.Id_platillo));
+
+        if (delta_cantidad > 0) {
+            // Validar estrictamente que haya stock e insumos antes de incrementar
+            const verif = verificarStockPlatilloEInsumos(platObj, delta_cantidad);
+            if (!verif.valido) {
+                return res.status(400).json({ error: verif.error });
+            }
+            ajustarStockEInsumosDePlatillo(platObj, delta_cantidad);
+            det.cantidad += delta_cantidad;
+            det.Cantidad = det.cantidad;
+            det.subtotal = Number((det.cantidad * det.precio).toFixed(2));
+            det.Subtotal = det.subtotal;
+        } else {
+            // Reducción de cantidad: devolver la diferencia al inventario
+            const cantActual = Number(det.cantidad || det.Cantidad || 0);
+            const cantADevolver = Math.min(cantActual, Math.abs(delta_cantidad));
+            if (platObj && cantADevolver > 0 && det.estado_item !== 'agotado_eliminado') {
+                ajustarStockEInsumosDePlatillo(platObj, -cantADevolver);
+            }
+            det.cantidad = Math.max(0, cantActual + delta_cantidad);
             det.Cantidad = det.cantidad;
             det.subtotal = Number((det.cantidad * det.precio).toFixed(2));
             det.Subtotal = det.subtotal;
@@ -794,7 +984,7 @@ app.patch('/api/pedidos/:id', verificarToken, verificarRol(['mesera', 'administr
         }
         registrarLog(req.usuario.nombre || 'Mesera', 'CANCELAR_ORDEN_VACIA', `Mesa ${String(pedido.numero_mesa).padStart(2, '0')} liberada al quedar sin platillos`);
         emitirActualizacionTiempoReal('pedido_cancelado', { id_pedido: idPed, numero_mesa: pedido.numero_mesa });
-        return res.json({ ...pedido, mesa_liberada: true });
+        return res.json({ ...pedido, mesa_liberada: true, canceladoAutomaticamente: true });
     }
 
     recalcularTotalPedido(pedido);
@@ -916,18 +1106,54 @@ app.post('/api/pagos', verificarToken, verificarRol(['mesera', 'administrador'])
         return res.status(400).json({ error: 'Datos de pago incompletos.' });
     }
 
-    const sumaPagos = pagos_divididos.reduce((acc, p) => acc + Number(p.monto || 0), 0);
+    const pedido = estado.pedidos.find((p) => (p.id_pedido || p.Id_pedido) === Number(id_pedido)) ||
+        estado.pedidos.find((p) => Number(p.numero_mesa || p.mesa) === Number(numero_mesa) && !['cerrado', 'cancelado'].includes(p.estado || p.Estado));
+
+    if (!pedido) {
+        return res.status(404).json({ error: 'No se encontró una comanda activa válida para cobrar en esta mesa.' });
+    }
+
+    // Recalcular total legítimo ignorando estrictamente platillos sin stock o eliminados
+    const totalLegitimoCuenta = recalcularTotalPedido(pedido);
+    if (totalLegitimoCuenta <= 0) {
+        return res.status(400).json({ error: 'La cuenta no tiene platillos con stock válidos para sumar a las ganancias del día.' });
+    }
+
+    const hayPagoInvalido = pagos_divididos.some((p) => isNaN(Number(p.monto)) || Number(p.monto) <= 0);
+    if (hayPagoInvalido) {
+        return res.status(400).json({ error: 'Todos los montos de pago deben ser mayores a $0.00.' });
+    }
+
+    const sumaPagos = Number(pagos_divididos.reduce((acc, p) => acc + Number(p.monto || 0), 0).toFixed(2));
     if (sumaPagos <= 0) {
         return res.status(400).json({ error: 'El monto total a pagar debe ser mayor a $0.00' });
     }
 
-    const pedido = estado.pedidos.find((p) => (p.id_pedido || p.Id_pedido) === Number(id_pedido)) ||
-        estado.pedidos.find((p) => Number(p.numero_mesa || p.mesa) === Number(numero_mesa) && !['cerrado', 'cancelado'].includes(p.estado || p.Estado));
+    // Validación estricta: la suma de montos separados no puede superar el total de la cuenta
+    if (sumaPagos > totalLegitimoCuenta + 0.05) {
+        return res.status(400).json({
+            error: `La suma de los montos ingresados ($${sumaPagos.toFixed(2)}) supera el monto total de la cuenta ($${totalLegitimoCuenta.toFixed(2)}).`
+        });
+    }
+
+    // Validación de porcentajes si se enviaron en el desglose
+    const porcentajes = pagos_divididos.filter((p) => p.porcentaje !== undefined).map((p) => Number(p.porcentaje));
+    if (porcentajes.length > 0) {
+        const sumaPct = Number(porcentajes.reduce((a, b) => a + b, 0).toFixed(2));
+        if (sumaPct > 100.01) {
+            return res.status(400).json({
+                error: `La suma de los porcentajes (${sumaPct}%) no puede superar el 100%.`
+            });
+        }
+    }
+
+    // Asegurar que NUNCA se sume a las ganancias del día más del total de platillos con stock
+    const montoSumarGanancias = Math.min(sumaPagos, totalLegitimoCuenta);
 
     const horaActual = new Date().toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
     const resumenPlatillos = pedido
         ? (pedido.detalles || [])
-            .filter((d) => d.estado_item !== 'agotado_eliminado')
+            .filter((d) => d.estado_item !== 'agotado_eliminado' && !d.sin_stock_evadido)
             .map((d) => `${(d.nombre || d.Nombre).split(' ')[0]} ×${d.cantidad}`)
             .join(', ')
         : 'Consumo en mesa';
@@ -940,7 +1166,7 @@ app.post('/api/pagos', verificarToken, verificarRol(['mesera', 'administrador'])
             resumen_platillos: resumenPlatillos,
             mesera: nombreMesera,
             metodo: pItem.metodo || 'Efectivo',
-            monto: Number(pItem.monto),
+            monto: Number(Number(pItem.monto).toFixed(2)),
             concepto_division: pItem.concepto || 'Cuenta completa',
             hora: horaActual,
         };
@@ -963,16 +1189,16 @@ app.post('/api/pagos', verificarToken, verificarRol(['mesera', 'administrador'])
         mesaObj.total = 0;
     }
 
-    estado.metricasDia.ventasHoy = Number((estado.metricasDia.ventasHoy + sumaPagos).toFixed(2));
+    estado.metricasDia.ventasHoy = Number((estado.metricasDia.ventasHoy + montoSumarGanancias).toFixed(2));
     estado.metricasDia.mesasAtendidas += 1;
     estado.metricasDia.ticketPromedio = Math.round(estado.metricasDia.ventasHoy / Math.max(1, estado.metricasDia.mesasAtendidas));
 
-    registrarLog(nombreMesera, 'COBRO_CUENTA', `Mesa ${String(numero_mesa).padStart(2, '0')} cobrada por $${sumaPagos.toFixed(2)}`);
+    registrarLog(nombreMesera, 'COBRO_CUENTA', `Mesa ${String(numero_mesa).padStart(2, '0')} cobrada por $${montoSumarGanancias.toFixed(2)}`);
     emitirActualizacionTiempoReal('pago:registrado', { pagos: pagosRegistrados, numero_mesa: Number(numero_mesa) });
 
     return res.status(201).json({
         mensaje: 'Pago procesado correctamente y mesa liberada',
-        totalCobrado: Number(sumaPagos.toFixed(2)),
+        totalCobrado: Number(montoSumarGanancias.toFixed(2)),
         pagos: pagosRegistrados,
     });
 });
@@ -1005,16 +1231,110 @@ app.patch('/api/mesas/:numero', verificarToken, verificarRol(['mesera', 'adminis
     if (!mesa) return res.status(404).json({ error: 'Mesa no encontrada' });
 
     const { estado: nuevoEstado, personas, mesera } = req.body;
-    if (nuevoEstado) mesa.estado = nuevoEstado;
-    if (typeof personas === 'number') {
-        mesa.personas = personas;
+    if (personas !== undefined) {
+        const valPers = validarRangoPersonasMesa(personas);
+        if (!valPers.valido) {
+            return res.status(400).json({ error: valPers.error });
+        }
+        mesa.personas = valPers.valor;
         const ped = estado.pedidos.find((p) => Number(p.numero_mesa || p.mesa) === mesa.numero && !['cerrado', 'cancelado'].includes(p.estado || p.Estado));
-        if (ped) ped.personas = personas;
+        if (ped) ped.personas = valPers.valor;
     }
+    if (nuevoEstado) mesa.estado = nuevoEstado;
     if (mesera) mesa.mesera = mesera;
 
     emitirActualizacionTiempoReal('mesa:actualizada', { mesa });
     return res.json(mesa);
+});
+
+// Editar turno de un colaborador específico (medio turno, horarios de inicio/fin, rol/turno asignado)
+app.patch('/api/usuarios/:id/turno', verificarToken, verificarRol(['administrador']), (req, res) => {
+    const u = estado.usuarios.find((item) => (item.id_usuario || item.id_Usuario) === Number(req.params.id));
+    if (!u) return res.status(404).json({ error: 'Colaborador no encontrado' });
+
+    const { tipo_turno, hora_inicio, hora_fin, turno } = req.body || {};
+    if (tipo_turno) u.tipo_turno = String(tipo_turno).trim();
+    if (hora_inicio) u.hora_inicio = String(hora_inicio).trim();
+    if (hora_fin) u.hora_fin = String(hora_fin).trim();
+
+    if (hora_inicio && hora_fin) {
+        u.turno = `${u.hora_inicio} - ${u.hora_fin}`;
+    } else if (turno) {
+        u.turno = String(turno).trim();
+    }
+
+    registrarLog(
+        req.usuario.nombre || 'Admin',
+        'EDITAR_TURNO_USUARIO',
+        `Turno de ${u.nombre} actualizado a ${u.tipo_turno} (${u.turno})`
+    );
+    emitirActualizacionTiempoReal('usuarios:actualizado');
+    return res.json({
+        mensaje: `Turno de ${u.nombre} actualizado correctamente (${u.tipo_turno}: ${u.turno}).`,
+        usuario: serializarUsuarioPublico(u)
+    });
+});
+
+// Editar turno activo general del restaurante (modalidad, horario de apertura/cierre, usuario responsable/asignado)
+app.get('/api/turno-activo', verificarToken, (_req, res) => {
+    return res.json(estado.turnoActivo);
+});
+
+app.patch('/api/turno-activo', verificarToken, verificarRol(['administrador']), (req, res) => {
+    const {
+        modalidad,
+        hora_inicio,
+        hora_fin,
+        id_responsable,
+        mesera_asignada,
+        cocinero_asignado,
+        notas,
+        id_usuario_modificar
+    } = req.body || {};
+
+    if (modalidad) estado.turnoActivo.modalidad = String(modalidad).trim();
+    if (hora_inicio) estado.turnoActivo.hora_inicio = String(hora_inicio).trim();
+    if (hora_fin) estado.turnoActivo.hora_fin = String(hora_fin).trim();
+    if (typeof notas === 'string') estado.turnoActivo.notas = notas.trim();
+    if (mesera_asignada) estado.turnoActivo.mesera_asignada = String(mesera_asignada).trim();
+    if (cocinero_asignado) estado.turnoActivo.cocinero_asignado = String(cocinero_asignado).trim();
+
+    if (id_responsable) {
+        const resp = estado.usuarios.find((u) => (u.id_usuario || u.id_Usuario) === Number(id_responsable));
+        if (resp) {
+            estado.turnoActivo.id_responsable = resp.id_usuario;
+            estado.turnoActivo.responsable_nombre = resp.nombre;
+            estado.turnoActivo.nombre_responsable = resp.nombre;
+        }
+    }
+    if (hora_inicio && hora_fin) {
+        estado.turnoActivo.horario_texto = `${estado.turnoActivo.hora_inicio} - ${estado.turnoActivo.hora_fin}`;
+    }
+
+    // Si también se seleccionó un colaborador para aplicarle este ajuste de horario/modalidad directamente
+    if (id_usuario_modificar) {
+        const colab = estado.usuarios.find((u) => (u.id_usuario || u.id_Usuario) === Number(id_usuario_modificar));
+        if (colab) {
+            if (modalidad) colab.tipo_turno = String(modalidad).trim();
+            if (hora_inicio) colab.hora_inicio = String(hora_inicio).trim();
+            if (hora_fin) colab.hora_fin = String(hora_fin).trim();
+            if (hora_inicio && hora_fin) {
+                colab.turno = `${colab.hora_inicio} - ${colab.hora_fin}`;
+            }
+        }
+    }
+
+    registrarLog(
+        req.usuario.nombre || 'Admin',
+        'EDITAR_TURNO_ACTIVO',
+        `Turno activo modificado: ${estado.turnoActivo.modalidad} (${estado.turnoActivo.hora_inicio} - ${estado.turnoActivo.hora_fin}) · Resp: ${estado.turnoActivo.responsable_nombre}`
+    );
+    emitirActualizacionTiempoReal('turno:actualizado', { turnoActivo: estado.turnoActivo });
+
+    return res.json({
+        mensaje: 'Turno activo actualizado correctamente.',
+        turnoActivo: estado.turnoActivo
+    });
 });
 
 app.post('/api/usuarios', verificarToken, verificarRol(['administrador']), async (req, res) => {

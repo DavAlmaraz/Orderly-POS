@@ -66,11 +66,29 @@ export default function VistaAdmin() {
         categoria: 'Plato fuerte',
         precio: '',
         stock: 15,
+        receta: [],
     });
+    const [insumoRecetaSeleccionado, setInsumoRecetaSeleccionado] = useState(5);
+    const [cantidadRecetaSeleccionada, setCantidadRecetaSeleccionada] = useState(0.15);
+
+    const [insumoRecetaEdicion, setInsumoRecetaEdicion] = useState(5);
+    const [cantidadRecetaEdicion, setCantidadRecetaEdicion] = useState(0.15);
+
+    const [modalTurnoAbierto, setModalTurnoAbierto] = useState(false);
+    const [formTurnoActivo, setFormTurnoActivo] = useState({
+        modalidad: 'Turno completo',
+        hora_inicio: '08:00',
+        hora_fin: '22:00',
+        id_responsable: 1,
+        notas: 'Operación normal de salón y cocina',
+    });
+    const [usuarioTurnoEditando, setUsuarioTurnoEditando] = useState(null);
+
     const [nuevoUsuario, setNuevoUsuario] = useState({
         nombre: '',
         rol: 'mesera',
         turno: '9am - 5pm',
+        tipo_turno: 'Turno completo',
         contrasena: '',
     });
     const [cambioPassUsuario, setCambioPassUsuario] = useState({
@@ -178,12 +196,116 @@ export default function VistaAdmin() {
                 categoria: platilloEditando.categoria,
                 precio: Number(platilloEditando.precio),
                 stock: Number(platilloEditando.stock),
+                receta: Array.isArray(platilloEditando.receta) ? platilloEditando.receta : [],
             });
-            mostrarToast(`Platillo "${platilloEditando.nombre}" actualizado correctamente.`, 'ok');
+            mostrarToast(`Platillo "${platilloEditando.nombre}" y su receta actualizados correctamente.`, 'ok');
             setPlatilloEditando(null);
             cargarEstadoAdmin();
         } catch (err) {
             mostrarToast(err.response?.data?.error || 'Error al actualizar platillo', 'critico');
+        }
+    }
+
+    function agregarInsumoARecetaNuevoPlatillo() {
+        const idIns = Number(insumoRecetaSeleccionado);
+        const cant = Number(cantidadRecetaSeleccionada);
+        if (!idIns || isNaN(cant) || cant <= 0) {
+            mostrarToast('Ingresa una cantidad requerida mayor a 0 para la receta.', 'alerta');
+            return;
+        }
+        setNuevoPlatillo((prev) => {
+            const lista = Array.isArray(prev.receta) ? [...prev.receta] : [];
+            const idx = lista.findIndex((r) => Number(r.id_insumo) === idIns);
+            if (idx >= 0) {
+                lista[idx] = { id_insumo: idIns, cantidad_requerida: Number((lista[idx].cantidad_requerida + cant).toFixed(3)) };
+            } else {
+                lista.push({ id_insumo: idIns, cantidad_requerida: Number(cant.toFixed(3)) });
+            }
+            return { ...prev, receta: lista };
+        });
+    }
+
+    function quitarInsumoDeRecetaNuevoPlatillo(idInsumo) {
+        setNuevoPlatillo((prev) => ({
+            ...prev,
+            receta: (prev.receta || []).filter((r) => Number(r.id_insumo) !== Number(idInsumo)),
+        }));
+    }
+
+    function agregarInsumoARecetaEdicion() {
+        if (!platilloEditando) return;
+        const idIns = Number(insumoRecetaEdicion);
+        const cant = Number(cantidadRecetaEdicion);
+        if (!idIns || isNaN(cant) || cant <= 0) {
+            mostrarToast('Ingresa una cantidad válida mayor a 0.', 'alerta');
+            return;
+        }
+        setPlatilloEditando((prev) => {
+            const lista = Array.isArray(prev.receta) ? [...prev.receta] : [];
+            const idx = lista.findIndex((r) => Number(r.id_insumo) === idIns);
+            if (idx >= 0) {
+                lista[idx] = { id_insumo: idIns, cantidad_requerida: Number((lista[idx].cantidad_requerida + cant).toFixed(3)) };
+            } else {
+                lista.push({ id_insumo: idIns, cantidad_requerida: Number(cant.toFixed(3)) });
+            }
+            return { ...prev, receta: lista };
+        });
+    }
+
+    function quitarInsumoDeRecetaEdicion(idInsumo) {
+        if (!platilloEditando) return;
+        setPlatilloEditando((prev) => ({
+            ...prev,
+            receta: (prev.receta || []).filter((r) => Number(r.id_insumo) !== Number(idInsumo)),
+        }));
+    }
+
+    function abrirModalEditarTurnoActivo() {
+        const ta = estado?.turnoActivo || {
+            modalidad: 'Turno completo',
+            hora_inicio: '08:00',
+            hora_fin: '22:00',
+            id_responsable: 1,
+            notas: 'Operación normal de salón y cocina',
+        };
+        setFormTurnoActivo({
+            modalidad: ta.modalidad || 'Turno completo',
+            hora_inicio: ta.hora_inicio || '08:00',
+            hora_fin: ta.hora_fin || '22:00',
+            id_responsable: Number(ta.id_responsable || 1),
+            notas: ta.notas || '',
+        });
+        setModalTurnoAbierto(true);
+    }
+
+    async function guardarTurnoActivo(e) {
+        e.preventDefault();
+        try {
+            const res = await api.patch('/turno-activo', formTurnoActivo);
+            mostrarToast(res.data?.mensaje || 'Turno activo actualizado correctamente.', 'ok');
+            setModalTurnoAbierto(false);
+            cargarEstadoAdmin();
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'Error al actualizar el turno activo', 'critico');
+        }
+    }
+
+    async function guardarTurnoColaborador(e) {
+        e.preventDefault();
+        if (!usuarioTurnoEditando) return;
+        try {
+            const res = await api.patch(`/usuarios/${usuarioTurnoEditando.id_usuario}/turno`, {
+                tipo_turno: usuarioTurnoEditando.tipo_turno,
+                hora_inicio: usuarioTurnoEditando.hora_inicio,
+                hora_fin: usuarioTurnoEditando.hora_fin,
+                turno: usuarioTurnoEditando.turno,
+                rol: usuarioTurnoEditando.rol,
+            });
+            mostrarToast(res.data?.mensaje || 'Turno del colaborador actualizado.', 'ok');
+            setUsuarioTurnoEditando(null);
+            cargarEstadoAdmin();
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'Error al actualizar turno del colaborador', 'critico');
         }
     }
 
@@ -204,9 +326,21 @@ export default function VistaAdmin() {
         e.preventDefault();
         if (!nuevoPlatillo.nombre || !nuevoPlatillo.precio) return;
         try {
-            await api.post('/platillos', nuevoPlatillo);
-            setNuevoPlatillo({ nombre: '', descripcion: '', categoria: 'Plato fuerte', precio: '', stock: 15 });
-            mostrarToast('Platillo registrado en el catálogo.', 'ok');
+            await api.post('/platillos', {
+                ...nuevoPlatillo,
+                precio: Number(nuevoPlatillo.precio),
+                stock: Number(nuevoPlatillo.stock ?? 15),
+                receta: Array.isArray(nuevoPlatillo.receta) ? nuevoPlatillo.receta : [],
+            });
+            setNuevoPlatillo({
+                nombre: '',
+                descripcion: '',
+                categoria: 'Plato fuerte',
+                precio: '',
+                stock: 15,
+                receta: [],
+            });
+            mostrarToast('Platillo y su receta registrados en el catálogo.', 'ok');
             cargarEstadoAdmin();
         } catch (err) {
             mostrarToast(err.response?.data?.error || 'Error al crear platillo', 'critico');
@@ -467,7 +601,18 @@ export default function VistaAdmin() {
                             </h1>
                         </div>
                         <div className="top-header-badges">
-                            <span className="pill-badge green">Turno activo · 8am - 10pm</span>
+                            <button
+                                type="button"
+                                className="pill-badge green"
+                                style={{ border: '1px solid #bbf7d0', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                                onClick={abrirModalEditarTurnoActivo}
+                                title="Clic para editar horario, modalidad o responsable del turno activo"
+                            >
+                                <span>
+                                    Turno activo · {estado.turnoActivo?.modalidad || 'Turno completo'} ({estado.turnoActivo?.horario_texto || '8am - 10pm'}) · Resp: {estado.turnoActivo?.nombre_responsable || 'J. David'}
+                                </span>
+                                <span style={{ textDecoration: 'underline', fontWeight: 700, marginLeft: 4 }}>Editar ✎</span>
+                            </button>
                             {estado.alertasActivasCount > 0 && (
                                 <button
                                     type="button"
@@ -819,12 +964,12 @@ export default function VistaAdmin() {
                         {vistaAdmin === 'catalogo' && (
                             <div className="split-workspace">
                                 <div className="panel-card">
-                                    <div className="panel-card-title">Catálogo de platillos y bebidas</div>
+                                    <div className="panel-card-title">Catálogo de platillos, recetas y bebidas</div>
                                     <div className="table-responsive">
                                         <table className="data-table">
                                             <thead>
                                                 <tr>
-                                                    <th>Platillo</th>
+                                                    <th>Platillo y Receta</th>
                                                     <th>Categoría</th>
                                                     <th>Precio</th>
                                                     <th>Stock</th>
@@ -836,11 +981,38 @@ export default function VistaAdmin() {
                                                 {estado.platillos.map((pl) => {
                                                     const idP = pl.id_platillo || pl.Id_platillo;
                                                     const disp = pl.disponible ?? pl.Disponible;
+                                                    const recetaItems = Array.isArray(pl.receta) ? pl.receta : [];
                                                     return (
                                                         <tr key={idP}>
                                                             <td>
                                                                 <div style={{ fontWeight: 600 }}>{pl.nombre || pl.Nombre}</div>
                                                                 <div style={{ fontSize: 12, color: '#6b7280' }}>{pl.descripcion || pl.Descripcion}</div>
+                                                                {recetaItems.length > 0 && (
+                                                                    <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                                        {recetaItems.map((rec) => {
+                                                                            const insObj = estado.inventario.find(
+                                                                                (i) => Number(i.id_insumo) === Number(rec.id_insumo)
+                                                                            );
+                                                                            return (
+                                                                                <span
+                                                                                    key={rec.id_insumo}
+                                                                                    style={{
+                                                                                        fontSize: 10.5,
+                                                                                        background: '#f1f5f9',
+                                                                                        color: '#334155',
+                                                                                        border: '1px solid #cbd5e1',
+                                                                                        borderRadius: 6,
+                                                                                        padding: '1px 6px',
+                                                                                        fontWeight: 600,
+                                                                                    }}
+                                                                                >
+                                                                                    {insObj ? insObj.nombre : `Insumo #${rec.id_insumo}`}: {rec.cantidad_requerida}{' '}
+                                                                                    {insObj?.unidad || 'u'}
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
                                                             </td>
                                                             <td>{pl.categoria || pl.Categoria}</td>
                                                             <td style={{ fontWeight: 700 }}>${Number(pl.precio || pl.Precio).toFixed(2)}</td>
@@ -870,6 +1042,7 @@ export default function VistaAdmin() {
                                                                             categoria: pl.categoria || pl.Categoria || 'Plato fuerte',
                                                                             precio: pl.precio || pl.Precio,
                                                                             stock: pl.stock ?? pl.Stock ?? 10,
+                                                                            receta: Array.isArray(pl.receta) ? [...pl.receta] : [],
                                                                         })
                                                                     }
                                                                 >
@@ -902,26 +1075,141 @@ export default function VistaAdmin() {
                                             onChange={(e) => setNuevoPlatillo({ ...nuevoPlatillo, descripcion: e.target.value })}
                                             className="form-input-clean"
                                         />
-                                        <select
-                                            value={nuevoPlatillo.categoria}
-                                            onChange={(e) => setNuevoPlatillo({ ...nuevoPlatillo, categoria: e.target.value })}
-                                            className="form-input-clean"
-                                        >
-                                            <option value="Entradas">Entradas</option>
-                                            <option value="Plato fuerte">Plato fuerte</option>
-                                            <option value="Bebidas">Bebidas</option>
-                                            <option value="Postres">Postres</option>
-                                        </select>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                            <select
+                                                value={nuevoPlatillo.categoria}
+                                                onChange={(e) => setNuevoPlatillo({ ...nuevoPlatillo, categoria: e.target.value })}
+                                                className="form-input-clean"
+                                            >
+                                                <option value="Entradas">Entradas</option>
+                                                <option value="Plato fuerte">Plato fuerte</option>
+                                                <option value="Bebidas">Bebidas</option>
+                                                <option value="Postres">Postres</option>
+                                            </select>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                placeholder="Stock inicial (porciones)"
+                                                value={nuevoPlatillo.stock}
+                                                onChange={(e) => setNuevoPlatillo({ ...nuevoPlatillo, stock: e.target.value })}
+                                                className="form-input-clean"
+                                                required
+                                            />
+                                        </div>
                                         <input
                                             type="number"
+                                            step="0.01"
+                                            min={1}
                                             placeholder="Precio en MXN ($)"
                                             value={nuevoPlatillo.precio}
                                             onChange={(e) => setNuevoPlatillo({ ...nuevoPlatillo, precio: e.target.value })}
                                             className="form-input-clean"
                                             required
                                         />
+
+                                        {/* SECCIÓN DE RECETA (INSUMOS DE MATERIA PRIMA REQUERIDOS POR PORCIÓN) */}
+                                        <div
+                                            style={{
+                                                background: '#f8fafc',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: 10,
+                                                padding: 12,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 8,
+                                            }}
+                                        >
+                                            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>
+                                                Receta del platillo (Deducción automática de insumos)
+                                            </div>
+                                            <div style={{ fontSize: 11.5, color: '#64748b' }}>
+                                                Selecciona qué materia prima consume 1 porción de este platillo al venderse:
+                                            </div>
+
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: 6, alignItems: 'center' }}>
+                                                <select
+                                                    value={insumoRecetaSeleccionado}
+                                                    onChange={(e) => setInsumoRecetaSeleccionado(Number(e.target.value))}
+                                                    className="form-input-clean"
+                                                    style={{ padding: '7px 8px', fontSize: 12 }}
+                                                >
+                                                    {estado.inventario.map((ins) => (
+                                                        <option key={ins.id_insumo} value={ins.id_insumo}>
+                                                            {ins.nombre} ({ins.unidad})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0.01"
+                                                    value={cantidadRecetaSeleccionada}
+                                                    onChange={(e) => setCantidadRecetaSeleccionada(e.target.value)}
+                                                    className="form-input-clean"
+                                                    placeholder="Cant."
+                                                    style={{ padding: '7px 8px', fontSize: 12 }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="secondary-outline-btn"
+                                                    style={{ padding: '7px 10px', fontSize: 12, whiteSpace: 'nowrap' }}
+                                                    onClick={agregarInsumoARecetaNuevoPlatillo}
+                                                >
+                                                    + Insumo
+                                                </button>
+                                            </div>
+
+                                            {(nuevoPlatillo.receta || []).length === 0 ? (
+                                                <div style={{ fontSize: 11.5, color: '#94a3b8', fontStyle: 'italic' }}>
+                                                    Sin insumos vinculados todavía. Agrega al menos un insumo para conectar con el inventario.
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                                                    {nuevoPlatillo.receta.map((item) => {
+                                                        const insObj = estado.inventario.find(
+                                                            (i) => Number(i.id_insumo) === Number(item.id_insumo)
+                                                        );
+                                                        return (
+                                                            <div
+                                                                key={item.id_insumo}
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    justifyContent: 'space-between',
+                                                                    alignItems: 'center',
+                                                                    background: '#ffffff',
+                                                                    border: '1px solid #cbd5e1',
+                                                                    borderRadius: 6,
+                                                                    padding: '4px 8px',
+                                                                    fontSize: 12,
+                                                                }}
+                                                            >
+                                                                <span>
+                                                                    <strong>{insObj?.nombre || `Insumo #${item.id_insumo}`}</strong> —{' '}
+                                                                    {item.cantidad_requerida} {insObj?.unidad || 'u'} por platillo
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => quitarInsumoDeRecetaNuevoPlatillo(item.id_insumo)}
+                                                                    style={{
+                                                                        border: 'none',
+                                                                        background: 'transparent',
+                                                                        color: '#dc2626',
+                                                                        fontWeight: 700,
+                                                                        cursor: 'pointer',
+                                                                        fontSize: 12,
+                                                                    }}
+                                                                >
+                                                                    Quitar ✕
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+
                                         <button type="submit" className="primary-dark-btn">
-                                            Guardar platillo en catálogo
+                                            Guardar platillo y receta en catálogo
                                         </button>
                                     </form>
                                 </div>
@@ -1043,54 +1331,117 @@ export default function VistaAdmin() {
 
                         {vistaAdmin === 'usuarios' && (
                             <div className="split-workspace">
-                                <div className="panel-card">
-                                    <div className="panel-card-title">Personal registrado</div>
-                                    <div className="table-responsive">
-                                        <table className="data-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>ID</th>
-                                                    <th>Nombre</th>
-                                                    <th>Rol</th>
-                                                    <th>Turno</th>
-                                                    <th>Estado</th>
-                                                    <th>Acción</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {estado.usuarios.map((u) => (
-                                                    <tr key={u.id_usuario}>
-                                                        <td>#{u.id_usuario}</td>
-                                                        <td style={{ fontWeight: 600 }}>{u.nombre}</td>
-                                                        <td>
-                                                            <span
-                                                                className={`pill-badge ${
-                                                                    u.rol === 'administrador' ? 'amber' : u.rol === 'cocina' ? 'green' : 'gray'
-                                                                }`}
-                                                            >
-                                                                {u.rol}
-                                                            </span>
-                                                        </td>
-                                                        <td>{u.turno}</td>
-                                                        <td>
-                                                            <span className={`pill-badge ${u.activo ? 'green' : 'red'}`}>
-                                                                {u.activo ? 'Activo' : 'Inactivo'}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <button
-                                                                type="button"
-                                                                className="secondary-outline-btn"
-                                                                style={{ padding: '4px 10px', fontSize: 12 }}
-                                                                onClick={() => alternarEstadoUsuario(u.id_usuario)}
-                                                            >
-                                                                {u.activo ? 'Desactivar' : 'Activar'}
-                                                            </button>
-                                                        </td>
+                                <div>
+                                    {/* TARJETA DESTACADA DE TURNO ACTIVO GENERAL */}
+                                    <div
+                                        className="panel-card"
+                                        style={{
+                                            marginBottom: 16,
+                                            borderLeft: '4px solid #16a34a',
+                                            background: '#f8fafc',
+                                        }}
+                                    >
+                                        <div className="panel-card-header" style={{ marginBottom: 8 }}>
+                                            <div>
+                                                <div className="panel-card-title" style={{ marginBottom: 2 }}>
+                                                    Turno activo del restaurante en curso
+                                                </div>
+                                                <div style={{ fontSize: 12.5, color: '#475569' }}>
+                                                    Modalidad: <strong>{estado.turnoActivo?.modalidad || 'Turno completo'}</strong> · Horario:{' '}
+                                                    <strong>{estado.turnoActivo?.horario_texto || '8am - 10pm'}</strong> · Responsable asignado:{' '}
+                                                    <strong>{estado.turnoActivo?.nombre_responsable || 'J. David'}</strong>
+                                                </div>
+                                                {estado.turnoActivo?.notas && (
+                                                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>
+                                                        Notas del turno: {estado.turnoActivo.notas}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="primary-dark-btn"
+                                                style={{ padding: '8px 14px', fontSize: 12.5 }}
+                                                onClick={abrirModalEditarTurnoActivo}
+                                            >
+                                                Editar turno activo
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="panel-card">
+                                        <div className="panel-card-title">Personal registrado y asignación de turnos</div>
+                                        <div className="table-responsive">
+                                            <table className="data-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Nombre</th>
+                                                        <th>Rol</th>
+                                                        <th>Modalidad / Horario</th>
+                                                        <th>Estado</th>
+                                                        <th>Acciones</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody>
+                                                    {estado.usuarios.map((u) => (
+                                                        <tr key={u.id_usuario}>
+                                                            <td>#{u.id_usuario}</td>
+                                                            <td style={{ fontWeight: 600 }}>{u.nombre}</td>
+                                                            <td>
+                                                                <span
+                                                                    className={`pill-badge ${
+                                                                        u.rol === 'administrador' ? 'amber' : u.rol === 'cocina' ? 'green' : 'gray'
+                                                                    }`}
+                                                                >
+                                                                    {u.rol}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <div style={{ fontWeight: 600, fontSize: 12.5 }}>
+                                                                    {u.tipo_turno || 'Turno completo'}
+                                                                </div>
+                                                                <div style={{ fontSize: 11.5, color: '#64748b' }}>{u.turno}</div>
+                                                            </td>
+                                                            <td>
+                                                                <span className={`pill-badge ${u.activo ? 'green' : 'red'}`}>
+                                                                    {u.activo ? 'Activo' : 'Inactivo'}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="secondary-outline-btn"
+                                                                        style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                                                        onClick={() =>
+                                                                            setUsuarioTurnoEditando({
+                                                                                id_usuario: u.id_usuario,
+                                                                                nombre: u.nombre,
+                                                                                rol: u.rol,
+                                                                                tipo_turno: u.tipo_turno || 'Turno completo',
+                                                                                hora_inicio: u.hora_inicio || '09:00',
+                                                                                hora_fin: u.hora_fin || '17:00',
+                                                                                turno: u.turno || '9am - 5pm',
+                                                                            })
+                                                                        }
+                                                                    >
+                                                                        Editar turno
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="secondary-outline-btn"
+                                                                        style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                                                        onClick={() => alternarEstadoUsuario(u.id_usuario)}
+                                                                    >
+                                                                        {u.activo ? 'Desactivar' : 'Activar'}
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1368,10 +1719,10 @@ export default function VistaAdmin() {
             {/* MODAL INTERACTIVO PARA EDITAR PLATILLO */}
             {platilloEditando && (
                 <div className="modal-overlay">
-                    <div className="modal-card" style={{ maxWidth: 460 }}>
+                    <div className="modal-card" style={{ maxWidth: 520 }}>
                         <div className="panel-card-header">
                             <span className="panel-card-title" style={{ marginBottom: 0 }}>
-                                Editar Platillo — {platilloEditando.nombre}
+                                Editar Platillo y Receta — {platilloEditando.nombre}
                             </span>
                             <button
                                 type="button"
@@ -1407,6 +1758,7 @@ export default function VistaAdmin() {
                                     <label className="form-field-label">Precio ($ MXN):</label>
                                     <input
                                         type="number"
+                                        step="0.01"
                                         value={platilloEditando.precio}
                                         onChange={(e) => setPlatilloEditando({ ...platilloEditando, precio: e.target.value })}
                                         className="form-input-clean"
@@ -1425,6 +1777,100 @@ export default function VistaAdmin() {
                                 </div>
                             </div>
 
+                            {/* EDITOR DE RECETA DEL PLATILLO */}
+                            <div
+                                style={{
+                                    background: '#f8fafc',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: 10,
+                                    padding: 12,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 8,
+                                }}
+                            >
+                                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>
+                                    Receta del platillo (Insumos por porción)
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: 6, alignItems: 'center' }}>
+                                    <select
+                                        value={insumoRecetaEdicion}
+                                        onChange={(e) => setInsumoRecetaEdicion(Number(e.target.value))}
+                                        className="form-input-clean"
+                                        style={{ padding: '7px 8px', fontSize: 12 }}
+                                    >
+                                        {estado.inventario.map((ins) => (
+                                            <option key={ins.id_insumo} value={ins.id_insumo}>
+                                                {ins.nombre} ({ins.unidad})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        value={cantidadRecetaEdicion}
+                                        onChange={(e) => setCantidadRecetaEdicion(e.target.value)}
+                                        className="form-input-clean"
+                                        style={{ padding: '7px 8px', fontSize: 12 }}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="secondary-outline-btn"
+                                        style={{ padding: '7px 10px', fontSize: 12 }}
+                                        onClick={agregarInsumoARecetaEdicion}
+                                    >
+                                        + Insumo
+                                    </button>
+                                </div>
+
+                                {(platilloEditando.receta || []).length === 0 ? (
+                                    <div style={{ fontSize: 11.5, color: '#94a3b8' }}>Sin insumos asignados a la receta.</div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        {(platilloEditando.receta || []).map((item) => {
+                                            const insObj = estado.inventario.find(
+                                                (i) => Number(i.id_insumo) === Number(item.id_insumo)
+                                            );
+                                            return (
+                                                <div
+                                                    key={item.id_insumo}
+                                                    style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        background: '#ffffff',
+                                                        border: '1px solid #cbd5e1',
+                                                        borderRadius: 6,
+                                                        padding: '4px 8px',
+                                                        fontSize: 12,
+                                                    }}
+                                                >
+                                                    <span>
+                                                        <strong>{insObj?.nombre || `Insumo #${item.id_insumo}`}</strong> — {item.cantidad_requerida}{' '}
+                                                        {insObj?.unidad || 'u'}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => quitarInsumoDeRecetaEdicion(item.id_insumo)}
+                                                        style={{
+                                                            border: 'none',
+                                                            background: 'transparent',
+                                                            color: '#dc2626',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            fontSize: 12,
+                                                        }}
+                                                    >
+                                                        Quitar ✕
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
                             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
                                 <button
                                     type="button"
@@ -1436,6 +1882,245 @@ export default function VistaAdmin() {
                                 </button>
                                 <button type="submit" className="primary-dark-btn" style={{ flex: 1.5 }}>
                                     Guardar cambios
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL PARA EDITAR TURNO ACTIVO GENERAL DEL RESTAURANTE */}
+            {modalTurnoAbierto && (
+                <div className="modal-overlay">
+                    <div className="modal-card" style={{ maxWidth: 480 }}>
+                        <div className="panel-card-header">
+                            <span className="panel-card-title" style={{ marginBottom: 0 }}>
+                                Editar Turno Activo en Curso
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setModalTurnoAbierto(false)}
+                                style={{ border: 'none', background: 'transparent', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+
+                        <form onSubmit={guardarTurnoActivo} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div>
+                                <label className="form-field-label">Modalidad del turno (ej. Turno completo o Medio turno):</label>
+                                <select
+                                    value={formTurnoActivo.modalidad}
+                                    onChange={(e) => {
+                                        const mod = e.target.value;
+                                        let hIni = formTurnoActivo.hora_inicio;
+                                        let hFin = formTurnoActivo.hora_fin;
+                                        if (mod === 'Medio turno') {
+                                            hIni = '08:00';
+                                            hFin = '14:00';
+                                        } else if (mod === 'Turno matutino') {
+                                            hIni = '08:00';
+                                            hFin = '16:00';
+                                        } else if (mod === 'Turno vespertino') {
+                                            hIni = '14:00';
+                                            hFin = '22:00';
+                                        } else if (mod === 'Turno completo') {
+                                            hIni = '08:00';
+                                            hFin = '22:00';
+                                        }
+                                        setFormTurnoActivo({
+                                            ...formTurnoActivo,
+                                            modalidad: mod,
+                                            hora_inicio: hIni,
+                                            hora_fin: hFin,
+                                        });
+                                    }}
+                                    className="form-input-clean"
+                                >
+                                    <option value="Turno completo">Turno completo (Jornada estándar)</option>
+                                    <option value="Medio turno">Medio turno (Jornada reducida)</option>
+                                    <option value="Turno matutino">Turno matutino</option>
+                                    <option value="Turno vespertino">Turno vespertino</option>
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div>
+                                    <label className="form-field-label">Hora de inicio:</label>
+                                    <input
+                                        type="time"
+                                        value={formTurnoActivo.hora_inicio}
+                                        onChange={(e) => setFormTurnoActivo({ ...formTurnoActivo, hora_inicio: e.target.value })}
+                                        className="form-input-clean"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="form-field-label">Hora de fin:</label>
+                                    <input
+                                        type="time"
+                                        value={formTurnoActivo.hora_fin}
+                                        onChange={(e) => setFormTurnoActivo({ ...formTurnoActivo, hora_fin: e.target.value })}
+                                        className="form-input-clean"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="form-field-label">Usuario responsable asignado al turno:</label>
+                                <select
+                                    value={formTurnoActivo.id_responsable}
+                                    onChange={(e) => setFormTurnoActivo({ ...formTurnoActivo, id_responsable: Number(e.target.value) })}
+                                    className="form-input-clean"
+                                >
+                                    {estado.usuarios
+                                        .filter((u) => u.activo)
+                                        .map((u) => (
+                                            <option key={u.id_usuario} value={u.id_usuario}>
+                                                {u.nombre} ({u.rol} · {u.turno})
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="form-field-label">Notas operativas del turno:</label>
+                                <input
+                                    type="text"
+                                    value={formTurnoActivo.notas}
+                                    onChange={(e) => setFormTurnoActivo({ ...formTurnoActivo, notas: e.target.value })}
+                                    placeholder="Ej. Ajuste a medio turno por evento especial"
+                                    className="form-input-clean"
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                                <button
+                                    type="button"
+                                    className="secondary-outline-btn"
+                                    style={{ flex: 1 }}
+                                    onClick={() => setModalTurnoAbierto(false)}
+                                >
+                                    Cancelar
+                                </button>
+                                <button type="submit" className="primary-dark-btn" style={{ flex: 1.5 }}>
+                                    Guardar cambios del turno
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL PARA EDITAR TURNO DE UN COLABORADOR ESPECÍFICO */}
+            {usuarioTurnoEditando && (
+                <div className="modal-overlay">
+                    <div className="modal-card" style={{ maxWidth: 460 }}>
+                        <div className="panel-card-header">
+                            <span className="panel-card-title" style={{ marginBottom: 0 }}>
+                                Editar Turno — {usuarioTurnoEditando.nombre}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setUsuarioTurnoEditando(null)}
+                                style={{ border: 'none', background: 'transparent', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+
+                        <form onSubmit={guardarTurnoColaborador} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div>
+                                <label className="form-field-label">Modalidad de jornada:</label>
+                                <select
+                                    value={usuarioTurnoEditando.tipo_turno}
+                                    onChange={(e) => {
+                                        const mod = e.target.value;
+                                        let hIni = usuarioTurnoEditando.hora_inicio;
+                                        let hFin = usuarioTurnoEditando.hora_fin;
+                                        if (mod === 'Medio turno') {
+                                            hIni = '09:00';
+                                            hFin = '13:00';
+                                        } else if (mod === 'Turno completo') {
+                                            hIni = '09:00';
+                                            hFin = '17:00';
+                                        }
+                                        setUsuarioTurnoEditando({
+                                            ...usuarioTurnoEditando,
+                                            tipo_turno: mod,
+                                            hora_inicio: hIni,
+                                            hora_fin: hFin,
+                                        });
+                                    }}
+                                    className="form-input-clean"
+                                >
+                                    <option value="Turno completo">Turno completo</option>
+                                    <option value="Medio turno">Medio turno</option>
+                                    <option value="Turno matutino">Turno matutino</option>
+                                    <option value="Turno vespertino">Turno vespertino</option>
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div>
+                                    <label className="form-field-label">Hora de entrada:</label>
+                                    <input
+                                        type="time"
+                                        value={usuarioTurnoEditando.hora_inicio}
+                                        onChange={(e) =>
+                                            setUsuarioTurnoEditando({
+                                                ...usuarioTurnoEditando,
+                                                hora_inicio: e.target.value,
+                                                turno: '',
+                                            })
+                                        }
+                                        className="form-input-clean"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="form-field-label">Hora de salida:</label>
+                                    <input
+                                        type="time"
+                                        value={usuarioTurnoEditando.hora_fin}
+                                        onChange={(e) =>
+                                            setUsuarioTurnoEditando({
+                                                ...usuarioTurnoEditando,
+                                                hora_fin: e.target.value,
+                                                turno: '',
+                                            })
+                                        }
+                                        className="form-input-clean"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="form-field-label">Rol asignado:</label>
+                                <select
+                                    value={usuarioTurnoEditando.rol}
+                                    onChange={(e) => setUsuarioTurnoEditando({ ...usuarioTurnoEditando, rol: e.target.value })}
+                                    className="form-input-clean"
+                                >
+                                    <option value="mesera">Mesera / Salón</option>
+                                    <option value="cocina">Cocina / Chef</option>
+                                    <option value="administrador">Administrador</option>
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                                <button
+                                    type="button"
+                                    className="secondary-outline-btn"
+                                    style={{ flex: 1 }}
+                                    onClick={() => setUsuarioTurnoEditando(null)}
+                                >
+                                    Cancelar
+                                </button>
+                                <button type="submit" className="primary-dark-btn" style={{ flex: 1.5 }}>
+                                    Guardar turno del colaborador
                                 </button>
                             </div>
                         </form>

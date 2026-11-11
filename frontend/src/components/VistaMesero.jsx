@@ -3,12 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL, obtenerSesionActiva, limpiarSesionActiva } from '../services/api';
 
+const MAX_PERSONAS_MESA = 12;
+
 const MOTIVOS_CANCELACION = [
     'Solicitud directa del cliente',
     'Tiempo de espera excedido',
     'Error al capturar la orden',
     'Platillo o ingrediente no disponible',
     'Cambio de opinión de los comensales',
+];
+
+const METODOS_PAGO_OPCIONES = [
+    'Efectivo',
+    'Tarjeta de crédito',
+    'Tarjeta de débito',
+    'Transferencia',
+    'Monedero digital',
 ];
 
 export default function VistaMesero() {
@@ -38,6 +48,8 @@ export default function VistaMesero() {
     const [nuevoNumPersonas, setNuevoNumPersonas] = useState(2);
     const [mostrarTransferirMesa, setMostrarTransferirMesa] = useState(false);
     const [mesaDestinoTransferencia, setMesaDestinoTransferencia] = useState(1);
+    const [platilloExtraSeleccionado, setPlatilloExtraSeleccionado] = useState('');
+    const [cantidadExtraSeleccionada, setCantidadExtraSeleccionada] = useState(1);
 
     // Estado para Modal de Cancelación de Orden
     const [modalCancelarAbierto, setModalCancelarAbierto] = useState(false);
@@ -45,13 +57,14 @@ export default function VistaMesero() {
     const [motivoCancelacionExtra, setMotivoCancelacionExtra] = useState('');
     const [cancelandoOrden, setCancelandoOrden] = useState(false);
 
-    // Estado para Modal de Cobro y Separación de Cuenta
+    // Estado para Modal de Cobro y Separación de Cuenta (Dinámico por número de comensales)
     const [modalCobroAbierto, setModalCobroAbierto] = useState(false);
     const [modoDivision, setModoDivision] = useState('completa');
     const [metodoPagoPrincipal, setMetodoPagoPrincipal] = useState('Efectivo');
     const [metodoPagoSecundario, setMetodoPagoSecundario] = useState('Tarjeta de crédito');
-    const [porcentajePersona1, setPorcentajePersona1] = useState(50);
-    const [montoPersona1, setMontoPersona1] = useState(150);
+    const [porcentajesComensales, setPorcentajesComensales] = useState([50, 50]);
+    const [montosComensales, setMontosComensales] = useState([150, 150]);
+    const [metodosComensales, setMetodosComensales] = useState(['Efectivo', 'Tarjeta de crédito']);
     const [platillosSeleccionadosPago1, setPlatillosSeleccionadosPago1] = useState({});
 
     function cambiarVista(nuevaVista) {
@@ -182,23 +195,54 @@ export default function VistaMesero() {
         return pedidosActivosSalón[0] || null;
     }, [pedidosActivosSalón, mesaActivaDetalle]);
 
+    // Inicializar arreglos dinámicos de división según el número real de personas en la mesa
+    const inicializarDivisionDinamica = (numPersonas, totalCuenta) => {
+        const n = Math.min(MAX_PERSONAS_MESA, Math.max(1, Number(numPersonas || 2)));
+        const pctBase = Math.floor((100 / n) * 100) / 100;
+        const arrPct = Array.from({ length: n }, (_, idx) =>
+            idx === n - 1 ? Number((100 - pctBase * (n - 1)).toFixed(2)) : pctBase
+        );
+        const montoBase = Math.floor((totalCuenta / n) * 100) / 100;
+        const arrMontos = Array.from({ length: n }, (_, idx) =>
+            idx === n - 1 ? Number((totalCuenta - montoBase * (n - 1)).toFixed(2)) : montoBase
+        );
+        const arrMetodos = Array.from({ length: n }, (_, idx) => (idx === 0 ? 'Efectivo' : 'Tarjeta de crédito'));
+        setPorcentajesComensales(arrPct);
+        setMontosComensales(arrMontos);
+        setMetodosComensales(arrMetodos);
+    };
+
     useEffect(() => {
         if (pedidoMesaActiva) {
             setNotaAlergiaActiva(pedidoMesaActiva.nota_cocina || '');
             setNuevoNumPersonas(pedidoMesaActiva.personas || 2);
+            inicializarDivisionDinamica(pedidoMesaActiva.personas || 2, Number(pedidoMesaActiva.total || 0));
         }
-    }, [pedidoMesaActiva?.id_pedido, pedidoMesaActiva?.numero_mesa]);
+    }, [pedidoMesaActiva?.id_pedido, pedidoMesaActiva?.numero_mesa, pedidoMesaActiva?.personas, pedidoMesaActiva?.total]);
 
     function agregarAlCarrito(platillo) {
         const idPlat = platillo.id_platillo || platillo.Id_platillo;
         const nombrePlat = platillo.nombre || platillo.Nombre;
         const precioPlat = Number(platillo.precio || platillo.Precio);
         const disp = platillo.disponible ?? platillo.Disponible;
+        const stockActual = Number(platillo.stock ?? platillo.Stock ?? 0);
 
-        if (!disp || platillo.stock <= 0) {
-            mostrarToast(`El platillo "${nombrePlat}" está agotado.`, 'critico');
+        if (!disp || stockActual <= 0) {
+            mostrarToast(`El platillo "${nombrePlat}" está agotado y no puede agregarse.`, 'critico');
             return;
         }
+
+        const itemEnCarrito = carritoComanda.find((item) => item.id_platillo === idPlat);
+        const cantidadActualEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
+
+        if (cantidadActualEnCarrito + 1 > stockActual) {
+            mostrarToast(
+                `Stock límite alcanzado para "${nombrePlat}": solo quedan ${stockActual} disponibles en cocina.`,
+                'alerta'
+            );
+            return;
+        }
+
         setCarritoComanda((prev) => {
             const existe = prev.find((item) => item.id_platillo === idPlat);
             if (existe) {
@@ -223,6 +267,19 @@ export default function VistaMesero() {
     }
 
     function cambiarCantidadCarrito(idPlatillo, delta) {
+        if (delta > 0) {
+            const platCatalogo = estado?.platillos?.find((p) => (p.id_platillo || p.Id_platillo) === idPlatillo);
+            const stockDisp = Number(platCatalogo?.stock ?? platCatalogo?.Stock ?? 0);
+            const itemActual = carritoComanda.find((i) => i.id_platillo === idPlatillo);
+            if (itemActual && itemActual.cantidad + delta > stockDisp) {
+                mostrarToast(
+                    `No se puede incrementar "${itemActual.nombre}": la cantidad solicitada supera el stock disponible (${stockDisp}).`,
+                    'alerta'
+                );
+                return;
+            }
+        }
+
         setCarritoComanda((prev) =>
             prev
                 .map((item) =>
@@ -238,18 +295,42 @@ export default function VistaMesero() {
         );
     }
 
+    // Detectar si algún platillo del carrito quedó sin stock suficiente antes de enviar a cocina
+    const conflictoStockCarrito = useMemo(() => {
+        if (!estado?.platillos || carritoComanda.length === 0) return null;
+        for (const item of carritoComanda) {
+            const plat = estado.platillos.find((p) => (p.id_platillo || p.Id_platillo) === item.id_platillo);
+            const disp = plat ? (plat.disponible ?? plat.Disponible) : false;
+            const stockActual = Number(plat?.stock ?? plat?.Stock ?? 0);
+            if (!plat || !disp || stockActual < item.cantidad) {
+                return `El platillo "${item.nombre}" requiere ${item.cantidad} unidades, pero solo hay ${stockActual} en stock.`;
+            }
+        }
+        return null;
+    }, [estado?.platillos, carritoComanda]);
+
     async function enviarNuevaComandaACocina() {
         if (carritoComanda.length === 0) {
             mostrarToast('Seleccione al menos un platillo para registrar la comanda.', 'alerta');
             return;
         }
+        const numP = Number(personasNueva);
+        if (isNaN(numP) || numP < 1 || numP > MAX_PERSONAS_MESA) {
+            mostrarToast(`El número de personas por mesa debe estar entre 1 y ${MAX_PERSONAS_MESA}.`, 'critico');
+            return;
+        }
+        if (conflictoStockCarrito) {
+            mostrarToast(`Envío bloqueado: ${conflictoStockCarrito}`, 'critico');
+            return;
+        }
+
         const total = carritoComanda.reduce((acc, c) => acc + c.precio * c.cantidad, 0);
         try {
             await api.post('/pedidos', {
                 id_usuario: usuarioActual.id_usuario || 2,
                 numero_mesa: Number(mesaSeleccionadaNueva),
                 mesa: Number(mesaSeleccionadaNueva),
-                personas: Number(personasNueva),
+                personas: numP,
                 nombre_mesera: usuarioActual.nombre,
                 nota_cocina: notaGeneralNueva,
                 total,
@@ -281,15 +362,62 @@ export default function VistaMesero() {
         }
     }
 
-    async function modificarCantidadDetalleActivo(idPedido, idDetalle, delta) {
+    async function modificarCantidadDetalleActivo(idPedido, det, delta) {
+        if (delta > 0) {
+            const platCatalogo = estado?.platillos?.find(
+                (p) => (p.id_platillo || p.Id_platillo) === Number(det.id_platillo || det.Id_platillo)
+            );
+            const stockDisp = Number(platCatalogo?.stock ?? platCatalogo?.Stock ?? 0);
+            if (!platCatalogo || !(platCatalogo.disponible ?? platCatalogo.Disponible) || stockDisp < delta) {
+                mostrarToast(
+                    `No se puede agregar más "${det.nombre || det.Nombre}": stock disponible actual es ${stockDisp}.`,
+                    'critico'
+                );
+                return;
+            }
+        }
         try {
             await api.patch(`/pedidos/${idPedido}`, {
-                id_detalle: idDetalle,
+                id_detalle: det.id_detalle,
                 delta_cantidad: delta,
             });
             cargarEstado();
-        } catch {
-            mostrarToast('No se pudo actualizar la cantidad.', 'critico');
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'No se pudo actualizar la cantidad.', 'critico');
+        }
+    }
+
+    async function agregarPlatilloDirectoAComandaActiva() {
+        if (!pedidoMesaActiva || !platilloExtraSeleccionado) {
+            mostrarToast('Seleccione un platillo disponible para agregar a la comanda.', 'alerta');
+            return;
+        }
+        const idPlat = Number(platilloExtraSeleccionado);
+        const cant = Number(cantidadExtraSeleccionada || 1);
+        const platCatalogo = estado?.platillos?.find((p) => (p.id_platillo || p.Id_platillo) === idPlat);
+        const stockDisp = Number(platCatalogo?.stock ?? platCatalogo?.Stock ?? 0);
+
+        if (!platCatalogo || !(platCatalogo.disponible ?? platCatalogo.Disponible) || cant > stockDisp) {
+            mostrarToast(
+                `Stock insuficiente para "${platCatalogo?.nombre || 'Platillo'}": solicita ${cant} y solo quedan ${stockDisp} disponibles.`,
+                'critico'
+            );
+            return;
+        }
+
+        try {
+            await api.patch(`/pedidos/${pedidoMesaActiva.id_pedido}`, {
+                agregar_platillo: {
+                    id_platillo: idPlat,
+                    cantidad: cant,
+                },
+            });
+            mostrarToast(`Se agregaron ${cant}× "${platCatalogo.nombre}" a la comanda y se descontó del inventario.`, 'ok');
+            setPlatilloExtraSeleccionado('');
+            setCantidadExtraSeleccionada(1);
+            cargarEstado();
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'Error al agregar platillo a la comanda.', 'critico');
         }
     }
 
@@ -300,14 +428,14 @@ export default function VistaMesero() {
                 eliminar_detalle: true,
             });
             if (res.data?.canceladoAutomaticamente) {
-                mostrarToast('Se eliminó el último platillo y la mesa quedó libre.', 'alerta');
+                mostrarToast('Se eliminó el último platillo, el stock regresó al inventario y la mesa quedó libre.', 'alerta');
                 cambiarVista('mapa_mesas');
             } else {
-                mostrarToast(`"${nombrePlatillo}" eliminado de la comanda.`, 'ok');
+                mostrarToast(`"${nombrePlatillo}" eliminado de la comanda y devuelto al inventario.`, 'ok');
             }
             cargarEstado();
-        } catch {
-            mostrarToast('No se pudo eliminar el platillo de la comanda.', 'critico');
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'No se pudo eliminar el platillo de la comanda.', 'critico');
         }
     }
 
@@ -363,18 +491,23 @@ export default function VistaMesero() {
 
     async function guardarCambioPersonasMesa() {
         if (!pedidoMesaActiva) return;
+        const num = Number(nuevoNumPersonas);
+        if (isNaN(num) || num < 1 || num > MAX_PERSONAS_MESA) {
+            mostrarToast(`El número de personas por mesa debe estar entre 1 y máximo ${MAX_PERSONAS_MESA}.`, 'critico');
+            return;
+        }
         try {
             await api.patch(`/mesas/${pedidoMesaActiva.numero_mesa}`, {
-                personas: Number(nuevoNumPersonas),
+                personas: num,
             });
             setMostrarCambioPersonas(false);
             mostrarToast(
-                `Mesa ${String(pedidoMesaActiva.numero_mesa).padStart(2, '0')} actualizada a ${nuevoNumPersonas} personas.`,
+                `Mesa ${String(pedidoMesaActiva.numero_mesa).padStart(2, '0')} actualizada a ${num} personas.`,
                 'ok'
             );
             cargarEstado();
-        } catch {
-            mostrarToast('Error al actualizar número de personas.', 'critico');
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'Error al actualizar número de personas.', 'critico');
         }
     }
 
@@ -397,8 +530,51 @@ export default function VistaMesero() {
         }
     }
 
+    // Cálculos de validación en tiempo real para el Modal de Cobro
+    const totalCuentaActiva = Number(pedidoMesaActiva?.total || 0);
+    const sumaPorcentajesActual = useMemo(
+        () => Number(porcentajesComensales.reduce((acc, val) => acc + Number(val || 0), 0).toFixed(2)),
+        [porcentajesComensales]
+    );
+    const sumaMontosActual = useMemo(
+        () => Number(montosComensales.reduce((acc, val) => acc + Number(val || 0), 0).toFixed(2)),
+        [montosComensales]
+    );
+
+    const errorValidacionCobro = useMemo(() => {
+        if (!pedidoMesaActiva) return null;
+        if (modoDivision === 'porcentaje') {
+            if (sumaPorcentajesActual > 100) {
+                return `La suma de los porcentajes (${sumaPorcentajesActual}%) supera el 100% permitido.`;
+            }
+            if (Math.abs(sumaPorcentajesActual - 100) > 0.05) {
+                return `La suma de los porcentajes debe ser exactamente 100% (actual: ${sumaPorcentajesActual}%).`;
+            }
+            if (porcentajesComensales.some((p) => Number(p) <= 0)) {
+                return 'Cada comensal incluido en la división debe tener un porcentaje mayor a 0%.';
+            }
+        }
+        if (modoDivision === 'monto') {
+            if (sumaMontosActual > totalCuentaActiva + 0.01) {
+                return `La suma de los montos ingresados ($${sumaMontosActual.toFixed(2)}) no puede superar el total de la cuenta ($${totalCuentaActiva.toFixed(2)}).`;
+            }
+            if (Math.abs(sumaMontosActual - totalCuentaActiva) > 0.05) {
+                return `Faltan $${(totalCuentaActiva - sumaMontosActual).toFixed(2)} por asignar para cubrir el total de $${totalCuentaActiva.toFixed(2)}.`;
+            }
+            if (montosComensales.some((m) => Number(m) <= 0)) {
+                return 'Cada pago dividido debe tener un monto mayor a $0.00.';
+            }
+        }
+        return null;
+    }, [pedidoMesaActiva, modoDivision, sumaPorcentajesActual, sumaMontosActual, totalCuentaActiva, porcentajesComensales, montosComensales]);
+
     async function procesarCobroCuenta() {
         if (!pedidoMesaActiva) return;
+        if (errorValidacionCobro) {
+            mostrarToast(errorValidacionCobro, 'critico');
+            return;
+        }
+
         const mesaACobrar = pedidoMesaActiva.numero_mesa;
         const totalCuenta = Number(pedidoMesaActiva.total || 0);
         let pagosDivididos = [];
@@ -406,19 +582,26 @@ export default function VistaMesero() {
         if (modoDivision === 'completa') {
             pagosDivididos = [{ metodo: metodoPagoPrincipal, monto: totalCuenta, concepto: 'Cuenta completa' }];
         } else if (modoDivision === 'porcentaje') {
-            const m1 = Number(((totalCuenta * porcentajePersona1) / 100).toFixed(2));
-            const m2 = Number((totalCuenta - m1).toFixed(2));
-            pagosDivididos = [
-                { metodo: metodoPagoPrincipal, monto: m1, concepto: `División ${porcentajePersona1}%` },
-                { metodo: metodoPagoSecundario, monto: m2, concepto: `División ${100 - porcentajePersona1}%` },
-            ];
+            let acumulado = 0;
+            pagosDivididos = porcentajesComensales.map((pct, idx) => {
+                const esUltimo = idx === porcentajesComensales.length - 1;
+                const montoCalc = esUltimo
+                    ? Number((totalCuenta - acumulado).toFixed(2))
+                    : Number(((totalCuenta * Number(pct)) / 100).toFixed(2));
+                acumulado += montoCalc;
+                return {
+                    metodo: metodosComensales[idx] || metodoPagoPrincipal,
+                    monto: montoCalc,
+                    porcentaje: Number(pct),
+                    concepto: `Comensal ${idx + 1} (${pct}%)`,
+                };
+            });
         } else if (modoDivision === 'monto') {
-            const m1 = Math.min(totalCuenta, Math.max(1, Number(montoPersona1)));
-            const m2 = Number((totalCuenta - m1).toFixed(2));
-            pagosDivididos = [
-                { metodo: metodoPagoPrincipal, monto: m1, concepto: 'Pago parcial 1' },
-                ...(m2 > 0 ? [{ metodo: metodoPagoSecundario, monto: m2, concepto: 'Resto de cuenta' }] : []),
-            ];
+            pagosDivididos = montosComensales.map((m, idx) => ({
+                metodo: metodosComensales[idx] || metodoPagoPrincipal,
+                monto: Number(Number(m).toFixed(2)),
+                concepto: `Comensal ${idx + 1} (Monto asignado)`,
+            }));
         } else if (modoDivision === 'platillo') {
             const detallesActivos = (pedidoMesaActiva.detalles || []).filter((d) => d.estado_item !== 'agotado_eliminado');
             const m1 = detallesActivos
@@ -478,6 +661,9 @@ export default function VistaMesero() {
         if (filtroMapaMesas === 'todas') return true;
         return m.estado === filtroMapaMesas;
     });
+    const platillosDisponiblesParaAgregar = (estado.platillos || []).filter(
+        (p) => (p.disponible ?? p.Disponible) && Number(p.stock ?? p.Stock ?? 0) > 0
+    );
 
     return (
         <div translate="no">
@@ -617,7 +803,7 @@ export default function VistaMesero() {
                         <div className="user-avatar">{usuarioActual.iniciales || 'MA'}</div>
                         <div>
                             <div className="user-meta-name">{usuarioActual.nombre}</div>
-                            <div className="user-meta-role">Mesera · {usuarioActual.turno || '9am - 5pm'}</div>
+                            <div className="user-meta-role">Mesera · {usuarioActual.turno || '09:00 - 17:00'}</div>
                         </div>
                     </div>
                 </aside>
@@ -695,7 +881,7 @@ export default function VistaMesero() {
                                             ? 'Por cobrar / Lista en mesa'
                                             : `En cocina · ${pedidoMesaActiva.minutos_espera || 1} min`}
                                     </span>
-                                    <span className="pill-badge gray">{pedidoMesaActiva.personas || 2} personas</span>
+                                    <span className="pill-badge gray">{pedidoMesaActiva.personas || 2} personas (máx. {MAX_PERSONAS_MESA})</span>
                                 </>
                             )}
                         </div>
@@ -789,7 +975,8 @@ export default function VistaMesero() {
                                             )
                                             .map((pl) => {
                                                 const idP = pl.id_platillo || pl.Id_platillo;
-                                                const disp = pl.disponible ?? pl.Disponible;
+                                                const stockActual = Number(pl.stock ?? pl.Stock ?? 0);
+                                                const disp = (pl.disponible ?? pl.Disponible) && stockActual > 0;
                                                 const enCarrito = carritoComanda.find((c) => c.id_platillo === idP);
                                                 return (
                                                     <div
@@ -815,8 +1002,8 @@ export default function VistaMesero() {
                                                                 }}
                                                             >
                                                                 {!disp
-                                                                    ? 'Agotado en cocina'
-                                                                    : pl.descripcion || pl.Descripcion}
+                                                                    ? 'Sin stock disponible en cocina'
+                                                                    : `${pl.descripcion || pl.Descripcion} · (Stock: ${stockActual})`}
                                                             </div>
                                                         </div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -846,7 +1033,7 @@ export default function VistaMesero() {
                                         <span className="panel-card-title" style={{ marginBottom: 0 }}>
                                             Comanda — Mesa {String(mesaSeleccionadaNueva).padStart(2, '0')} · {personasNueva} personas
                                         </span>
-                                        <div style={{ display: 'flex', gap: 6 }}>
+                                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                             <select
                                                 value={mesaSeleccionadaNueva}
                                                 onChange={(e) => setMesaSeleccionadaNueva(Number(e.target.value))}
@@ -861,14 +1048,26 @@ export default function VistaMesero() {
                                             <input
                                                 type="number"
                                                 min="1"
-                                                max="20"
+                                                max={MAX_PERSONAS_MESA}
                                                 value={personasNueva}
-                                                onChange={(e) => setPersonasNueva(Number(e.target.value))}
-                                                style={{ width: 56, padding: '5px 6px', borderRadius: 6, border: '1px solid #d1d5db' }}
-                                                title="Número de personas"
+                                                onChange={(e) => {
+                                                    const val = Math.min(MAX_PERSONAS_MESA, Math.max(1, Number(e.target.value || 1)));
+                                                    setPersonasNueva(val);
+                                                }}
+                                                style={{ width: 62, padding: '5px 6px', borderRadius: 6, border: '1px solid #d1d5db' }}
+                                                title={`Número de personas (1 a ${MAX_PERSONAS_MESA})`}
                                             />
                                         </div>
                                     </div>
+                                    <div style={{ fontSize: 11.5, color: '#6b7280', marginBottom: 10 }}>
+                                        Capacidad máxima permitida por mesa: <strong>{MAX_PERSONAS_MESA} comensales</strong>.
+                                    </div>
+
+                                    {conflictoStockCarrito && (
+                                        <div className="alert-banner" style={{ marginBottom: 12 }}>
+                                            <span><strong>Stock insuficiente:</strong> {conflictoStockCarrito}</span>
+                                        </div>
+                                    )}
 
                                     {carritoComanda.length === 0 ? (
                                         <div
@@ -887,50 +1086,66 @@ export default function VistaMesero() {
                                             {String(mesaSeleccionadaNueva).padStart(2, '0')}.
                                         </div>
                                     ) : (
-                                        carritoComanda.map((item) => (
-                                            <div
-                                                key={item.id_platillo}
-                                                style={{
-                                                    padding: '10px 0',
-                                                    borderBottom: '1px solid #f3f4f6',
-                                                }}
-                                            >
+                                        carritoComanda.map((item) => {
+                                            const platCat = estado.platillos.find((p) => (p.id_platillo || p.Id_platillo) === item.id_platillo);
+                                            const stockMax = Number(platCat?.stock ?? platCat?.Stock ?? 0);
+                                            return (
                                                 <div
+                                                    key={item.id_platillo}
                                                     style={{
-                                                        display: 'flex',
-                                                        justifyContent: 'space-between',
-                                                        alignItems: 'center',
+                                                        padding: '10px 0',
+                                                        borderBottom: '1px solid #f3f4f6',
                                                     }}
                                                 >
-                                                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{item.nombre}</div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                        <div className="qty-stepper">
-                                                            <button type="button" onClick={() => cambiarCantidadCarrito(item.id_platillo, -1)}>−</button>
-                                                            <span>{item.cantidad}</span>
-                                                            <button type="button" onClick={() => cambiarCantidadCarrito(item.id_platillo, 1)}>+</button>
+                                                    <div
+                                                        style={{
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center',
+                                                        }}
+                                                    >
+                                                        <div>
+                                                            <div style={{ fontWeight: 600, fontSize: 13.5 }}>{item.nombre}</div>
+                                                            <div style={{ fontSize: 11, color: '#6b7280' }}>
+                                                                Disponible en cocina: {stockMax}
+                                                            </div>
                                                         </div>
-                                                        <span style={{ fontWeight: 700, width: 52, textAlign: 'right' }}>
-                                                            ${item.precio * item.cantidad}
-                                                        </span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                            <div className="qty-stepper">
+                                                                <button type="button" onClick={() => cambiarCantidadCarrito(item.id_platillo, -1)}>−</button>
+                                                                <span>{item.cantidad}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => cambiarCantidadCarrito(item.id_platillo, 1)}
+                                                                    disabled={item.cantidad >= stockMax}
+                                                                    style={{ opacity: item.cantidad >= stockMax ? 0.4 : 1 }}
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+                                                            <span style={{ fontWeight: 700, width: 52, textAlign: 'right' }}>
+                                                                ${item.precio * item.cantidad}
+                                                            </span>
+                                                        </div>
                                                     </div>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Observación del platillo (ej. sin cebolla)..."
+                                                        value={item.nota || ''}
+                                                        onChange={(e) => cambiarNotaItemCarrito(item.id_platillo, e.target.value)}
+                                                        style={{
+                                                            marginTop: 6,
+                                                            width: '100%',
+                                                            padding: '5px 8px',
+                                                            fontSize: '12px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid #e5e7eb',
+                                                            color: '#4b5563',
+                                                        }}
+                                                    />
                                                 </div>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Observación del platillo (ej. sin cebolla)..."
-                                                    value={item.nota || ''}
-                                                    onChange={(e) => cambiarNotaItemCarrito(item.id_platillo, e.target.value)}
-                                                    style={{
-                                                        marginTop: 6,
-                                                        width: '100%',
-                                                        padding: '5px 8px',
-                                                        fontSize: '12px',
-                                                        borderRadius: '6px',
-                                                        border: '1px solid #e5e7eb',
-                                                        color: '#4b5563',
-                                                    }}
-                                                />
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     )}
 
                                     <div style={{ marginTop: 14 }}>
@@ -964,7 +1179,13 @@ export default function VistaMesero() {
                                     <button
                                         type="button"
                                         className="primary-dark-btn"
-                                        style={{ width: '100%', marginBottom: 10 }}
+                                        style={{
+                                            width: '100%',
+                                            marginBottom: 10,
+                                            opacity: conflictoStockCarrito ? 0.5 : 1,
+                                            cursor: conflictoStockCarrito ? 'not-allowed' : 'pointer',
+                                        }}
+                                        disabled={!!conflictoStockCarrito}
                                         onClick={enviarNuevaComandaACocina}
                                     >
                                         Enviar comanda a cocina →
@@ -1016,6 +1237,10 @@ export default function VistaMesero() {
                                     {(pedidoMesaActiva.detalles || []).map((det) => {
                                         const esAgotado = det.estado_item === 'agotado_eliminado';
                                         const nombreItem = det.nombre || det.Nombre;
+                                        const platCatalogo = estado.platillos.find(
+                                            (p) => (p.id_platillo || p.Id_platillo) === Number(det.id_platillo || det.Id_platillo)
+                                        );
+                                        const stockRestante = Number(platCatalogo?.stock ?? platCatalogo?.Stock ?? 0);
                                         return (
                                             <div
                                                 key={det.id_detalle}
@@ -1043,19 +1268,21 @@ export default function VistaMesero() {
                                                         {nombreItem}
                                                     </div>
                                                     <div style={{ fontSize: 12, color: esAgotado ? '#dc2626' : '#6b7280' }}>
-                                                        {esAgotado ? 'Agotado en cocina — no se cobra' : (det.notas_item || `$${det.precio} c/u`)}
+                                                        {esAgotado
+                                                            ? 'Agotado en cocina — excluido del total y ganancias'
+                                                            : `${det.notas_item || `$${det.precio} c/u`} · (Stock libre: ${stockRestante})`}
                                                     </div>
                                                 </div>
 
                                                 {esAgotado ? (
-                                                    <span className="pill-badge red">Eliminado</span>
+                                                    <span className="pill-badge red">Sin stock ($0)</span>
                                                 ) : (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                         <div className="qty-stepper">
                                                             <button
                                                                 type="button"
                                                                 onClick={() =>
-                                                                    modificarCantidadDetalleActivo(pedidoMesaActiva.id_pedido, det.id_detalle, -1)
+                                                                    modificarCantidadDetalleActivo(pedidoMesaActiva.id_pedido, det, -1)
                                                                 }
                                                             >
                                                                 −
@@ -1063,9 +1290,12 @@ export default function VistaMesero() {
                                                             <span>{det.cantidad}</span>
                                                             <button
                                                                 type="button"
+                                                                disabled={stockRestante <= 0}
+                                                                style={{ opacity: stockRestante <= 0 ? 0.4 : 1 }}
                                                                 onClick={() =>
-                                                                    modificarCantidadDetalleActivo(pedidoMesaActiva.id_pedido, det.id_detalle, 1)
+                                                                    modificarCantidadDetalleActivo(pedidoMesaActiva.id_pedido, det, 1)
                                                                 }
+                                                                title={stockRestante <= 0 ? 'Sin stock adicional disponible' : 'Agregar 1 unidad'}
                                                             >
                                                                 +
                                                             </button>
@@ -1076,7 +1306,7 @@ export default function VistaMesero() {
                                                         <button
                                                             type="button"
                                                             className="remove-item-btn"
-                                                            title="Cancelar este platillo de la orden"
+                                                            title="Cancelar este platillo y regresar stock al inventario"
                                                             onClick={() =>
                                                                 eliminarPlatilloDeComandaActiva(
                                                                     pedidoMesaActiva.id_pedido,
@@ -1093,26 +1323,66 @@ export default function VistaMesero() {
                                         );
                                     })}
 
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setMesaSeleccionadaNueva(pedidoMesaActiva.numero_mesa);
-                                            cambiarVista('nueva_comanda');
-                                        }}
+                                    {/* Selector directo con validación estricta de stock para anexar platillo a la comanda activa */}
+                                    <div
                                         style={{
-                                            width: '100%',
-                                            padding: 11,
-                                            borderRadius: 8,
-                                            border: '1px dashed #cbd5e1',
                                             background: '#f8fafc',
-                                            color: '#475569',
-                                            fontWeight: 500,
-                                            cursor: 'pointer',
-                                            marginTop: 6,
+                                            border: '1px dashed #cbd5e1',
+                                            borderRadius: 8,
+                                            padding: 12,
+                                            marginTop: 8,
                                         }}
                                     >
-                                        + Agregar platillo disponible a esta comanda
-                                    </button>
+                                        <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+                                            Agregar platillo adicional a esta comanda (valida stock e insumos en vivo):
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                            <select
+                                                value={platilloExtraSeleccionado}
+                                                onChange={(e) => {
+                                                    setPlatilloExtraSeleccionado(e.target.value);
+                                                    setCantidadExtraSeleccionada(1);
+                                                }}
+                                                className="form-input-clean"
+                                                style={{ flex: 2, minWidth: 180, padding: '8px 10px' }}
+                                            >
+                                                <option value="">Seleccionar platillo con stock...</option>
+                                                {platillosDisponiblesParaAgregar.map((pl) => {
+                                                    const idP = pl.id_platillo || pl.Id_platillo;
+                                                    return (
+                                                        <option key={idP} value={idP}>
+                                                            {pl.nombre} — ${pl.precio} (Stock: {pl.stock})
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={
+                                                    platilloExtraSeleccionado
+                                                        ? Number(
+                                                              platillosDisponiblesParaAgregar.find(
+                                                                  (p) => (p.id_platillo || p.Id_platillo) === Number(platilloExtraSeleccionado)
+                                                              )?.stock || 1
+                                                          )
+                                                        : 15
+                                                }
+                                                value={cantidadExtraSeleccionada}
+                                                onChange={(e) => setCantidadExtraSeleccionada(Math.max(1, Number(e.target.value || 1)))}
+                                                style={{ width: 68, padding: '8px', borderRadius: 8, border: '1px solid #d1d5db' }}
+                                                title="Cantidad a agregar"
+                                            />
+                                            <button
+                                                type="button"
+                                                className="primary-dark-btn"
+                                                style={{ padding: '8px 14px', fontSize: 12.5 }}
+                                                onClick={agregarPlatilloDirectoAComandaActiva}
+                                            >
+                                                + Anexar
+                                            </button>
+                                        </div>
+                                    </div>
 
                                     <div style={{ marginTop: 16 }}>
                                         <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>
@@ -1198,7 +1468,13 @@ export default function VistaMesero() {
                                             <button
                                                 type="button"
                                                 className="primary-dark-btn"
-                                                onClick={() => setModalCobroAbierto(true)}
+                                                onClick={() => {
+                                                    inicializarDivisionDinamica(
+                                                        pedidoMesaActiva.personas || 2,
+                                                        Number(pedidoMesaActiva.total || 0)
+                                                    );
+                                                    setModalCobroAbierto(true);
+                                                }}
                                             >
                                                 Cobrar y cerrar mesa →
                                             </button>
@@ -1208,14 +1484,14 @@ export default function VistaMesero() {
                                                 className="secondary-outline-btn"
                                                 onClick={() => setMostrarCambioPersonas(!mostrarCambioPersonas)}
                                             >
-                                                Cambiar número de personas
+                                                Cambiar número de personas (1 - {MAX_PERSONAS_MESA})
                                             </button>
                                             {mostrarCambioPersonas && (
                                                 <div style={{ display: 'flex', gap: 8, padding: 8, background: '#f8fafc', borderRadius: 8 }}>
                                                     <input
                                                         type="number"
                                                         min="1"
-                                                        max="20"
+                                                        max={MAX_PERSONAS_MESA}
                                                         value={nuevoNumPersonas}
                                                         onChange={(e) => setNuevoNumPersonas(e.target.value)}
                                                         style={{ flex: 1, padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}
@@ -1255,7 +1531,6 @@ export default function VistaMesero() {
                                                 </div>
                                             )}
 
-                                            {/* BOTÓN FORMAL DE CANCELACIÓN DE ORDEN */}
                                             <button
                                                 type="button"
                                                 className="danger-outline-btn"
@@ -1291,7 +1566,7 @@ export default function VistaMesero() {
                                               }}
                                           >
                                               <span>
-                                                  <strong>{p.numero_mesa}</strong> — {p.resumen_platillos} ({p.metodo})
+                                                  <strong>{p.numero_mesa}</strong> — {p.resumen_platillos} ({p.metodo} · {p.concepto_division})
                                               </span>
                                               <strong>
                                                   ${Number(p.monto).toFixed(2)} · {p.hora}
@@ -1322,7 +1597,7 @@ export default function VistaMesero() {
                 </main>
             </div>
 
-            {/* MODAL DE CANCELACIÓN DE ORDEN (SOLICITUD DEL CLIENTE / MESERA) */}
+            {/* MODAL DE CANCELACIÓN DE ORDEN */}
             {modalCancelarAbierto && pedidoMesaActiva && (
                 <div className="modal-overlay">
                     <div className="modal-card" style={{ maxWidth: 480 }}>
@@ -1340,8 +1615,8 @@ export default function VistaMesero() {
                         </div>
 
                         <p style={{ fontSize: 13.5, color: '#374151', lineHeight: 1.5, marginBottom: 14 }}>
-                            Esta acción cancelará la comanda <strong>#{pedidoMesaActiva.id_pedido}</strong> (${Number(pedidoMesaActiva.total).toFixed(2)}), liberará la{' '}
-                            <strong>Mesa {String(pedidoMesaActiva.numero_mesa).padStart(2, '0')}</strong> y enviará un aviso automático al monitor de Cocina.
+                            Esta acción cancelará la comanda <strong>#{pedidoMesaActiva.id_pedido}</strong> (${Number(pedidoMesaActiva.total).toFixed(2)}), reintegrará el stock e insumos si aún no se prepara, liberará la{' '}
+                            <strong>Mesa {String(pedidoMesaActiva.numero_mesa).padStart(2, '0')}</strong> y notificará al monitor de Cocina.
                         </p>
 
                         <div className="form-field-group">
@@ -1393,13 +1668,13 @@ export default function VistaMesero() {
                 </div>
             )}
 
-            {/* MODAL DE COBRO Y SEPARACIÓN DE CUENTAS */}
+            {/* MODAL DE COBRO Y SEPARACIÓN DE CUENTAS DINÁMICO */}
             {modalCobroAbierto && pedidoMesaActiva && (
                 <div className="modal-overlay">
-                    <div className="modal-card">
+                    <div className="modal-card" style={{ maxWidth: 600 }}>
                         <div className="panel-card-header">
                             <span className="panel-card-title" style={{ marginBottom: 0 }}>
-                                Cobrar y Cerrar — Mesa {String(pedidoMesaActiva.numero_mesa).padStart(2, '0')} (Total: $
+                                Cobrar — Mesa {String(pedidoMesaActiva.numero_mesa).padStart(2, '0')} · {porcentajesComensales.length} comensales (Total: $
                                 {Number(pedidoMesaActiva.total).toFixed(2)})
                             </span>
                             <button
@@ -1418,8 +1693,8 @@ export default function VistaMesero() {
                             {[
                                 { id: 'completa', label: 'Cuenta única' },
                                 { id: 'platillo', label: 'Separar por platillo' },
-                                { id: 'porcentaje', label: 'Separar por porcentaje (%)' },
-                                { id: 'monto', label: 'Separar por monto ($)' },
+                                { id: 'porcentaje', label: `Por porcentaje (${porcentajesComensales.length} personas)` },
+                                { id: 'monto', label: `Por monto ($)` },
                             ].map((m) => (
                                 <button
                                     key={m.id}
@@ -1432,114 +1707,237 @@ export default function VistaMesero() {
                             ))}
                         </div>
 
-                        {modoDivision === 'platillo' && (
-                            <div
-                                style={{
-                                    background: '#f8fafc',
-                                    padding: 12,
-                                    borderRadius: 8,
-                                    marginBottom: 12,
-                                    fontSize: 13,
-                                }}
-                            >
-                                <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                                    Marca los platillos que pagará el Comensal 1:
-                                </div>
-                                {(pedidoMesaActiva.detalles || [])
-                                    .filter((d) => d.estado_item !== 'agotado_eliminado')
-                                    .map((d) => (
-                                        <label
-                                            key={d.id_detalle}
-                                            style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', cursor: 'pointer' }}
-                                        >
-                                            <span>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!!platillosSeleccionadosPago1[d.id_detalle]}
-                                                    onChange={(e) =>
-                                                        setPlatillosSeleccionadosPago1({
-                                                            ...platillosSeleccionadosPago1,
-                                                            [d.id_detalle]: e.target.checked,
-                                                        })
-                                                    }
-                                                    style={{ marginRight: 8 }}
-                                                />
-                                                {d.nombre || d.Nombre} ×{d.cantidad}
-                                            </span>
-                                            <strong>${d.subtotal}</strong>
-                                        </label>
-                                    ))}
+                        {errorValidacionCobro && (
+                            <div className="alert-banner" style={{ marginBottom: 12 }}>
+                                <span><strong>Validación de cobro:</strong> {errorValidacionCobro}</span>
                             </div>
                         )}
 
-                        {modoDivision === 'porcentaje' && (
-                            <div style={{ marginBottom: 12 }}>
-                                <label style={{ fontSize: 13, fontWeight: 600 }}>
-                                    Porcentaje Comensal 1: {porcentajePersona1}% ($
-                                    {((pedidoMesaActiva.total * porcentajePersona1) / 100).toFixed(2)}) / Comensal 2:{' '}
-                                    {100 - porcentajePersona1}% ($
-                                    {((pedidoMesaActiva.total * (100 - porcentajePersona1)) / 100).toFixed(2)})
-                                </label>
-                                <input
-                                    type="range"
-                                    min="10"
-                                    max="90"
-                                    step="5"
-                                    value={porcentajePersona1}
-                                    onChange={(e) => setPorcentajePersona1(Number(e.target.value))}
-                                    style={{ width: '100%', marginTop: 6 }}
-                                />
-                            </div>
-                        )}
-
-                        {modoDivision === 'monto' && (
-                            <div style={{ marginBottom: 12 }}>
-                                <label style={{ fontSize: 13, fontWeight: 600 }}>Monto a cubrir en Pago 1 ($):</label>
-                                <input
-                                    type="number"
-                                    value={montoPersona1}
-                                    onChange={(e) => setMontoPersona1(Number(e.target.value))}
-                                    className="form-input-clean"
-                                    style={{ marginTop: 4 }}
-                                />
-                            </div>
-                        )}
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
-                            <div>
-                                <label style={{ fontSize: 12.5, fontWeight: 600 }}>Método de pago 1:</label>
+                        {modoDivision === 'completa' && (
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={{ fontSize: 12.5, fontWeight: 600 }}>Método de pago de la cuenta completa:</label>
                                 <select
                                     value={metodoPagoPrincipal}
                                     onChange={(e) => setMetodoPagoPrincipal(e.target.value)}
                                     className="form-input-clean"
                                     style={{ marginTop: 4 }}
                                 >
-                                    <option value="Efectivo">Efectivo</option>
-                                    <option value="Tarjeta de crédito">Tarjeta de crédito</option>
-                                    <option value="Tarjeta de débito">Tarjeta de débito</option>
-                                    <option value="Transferencia">Transferencia bancaria</option>
-                                    <option value="Monedero digital">Monedero digital</option>
+                                    {METODOS_PAGO_OPCIONES.map((op) => (
+                                        <option key={op} value={op}>{op}</option>
+                                    ))}
                                 </select>
                             </div>
+                        )}
 
-                            {modoDivision !== 'completa' && (
-                                <div>
-                                    <label style={{ fontSize: 12.5, fontWeight: 600 }}>Método de pago 2 (Restante):</label>
-                                    <select
-                                        value={metodoPagoSecundario}
-                                        onChange={(e) => setMetodoPagoSecundario(e.target.value)}
-                                        className="form-input-clean"
-                                        style={{ marginTop: 4 }}
-                                    >
-                                        <option value="Tarjeta de crédito">Tarjeta de crédito</option>
-                                        <option value="Tarjeta de débito">Tarjeta de débito</option>
-                                        <option value="Efectivo">Efectivo</option>
-                                        <option value="Transferencia">Transferencia bancaria</option>
-                                        <option value="Monedero digital">Monedero digital</option>
-                                    </select>
+                        {modoDivision === 'platillo' && (
+                            <>
+                                <div
+                                    style={{
+                                        background: '#f8fafc',
+                                        padding: 12,
+                                        borderRadius: 8,
+                                        marginBottom: 12,
+                                        fontSize: 13,
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                                        Marca los platillos que pagará la Cuenta 1:
+                                    </div>
+                                    {(pedidoMesaActiva.detalles || [])
+                                        .filter((d) => d.estado_item !== 'agotado_eliminado')
+                                        .map((d) => (
+                                            <label
+                                                key={d.id_detalle}
+                                                style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', cursor: 'pointer' }}
+                                            >
+                                                <span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!platillosSeleccionadosPago1[d.id_detalle]}
+                                                        onChange={(e) =>
+                                                            setPlatillosSeleccionadosPago1({
+                                                                ...platillosSeleccionadosPago1,
+                                                                [d.id_detalle]: e.target.checked,
+                                                            })
+                                                        }
+                                                        style={{ marginRight: 8 }}
+                                                    />
+                                                    {d.nombre || d.Nombre} ×{d.cantidad}
+                                                </span>
+                                                <strong>${d.subtotal}</strong>
+                                            </label>
+                                        ))}
                                 </div>
-                            )}
-                        </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                                    <div>
+                                        <label style={{ fontSize: 12.5, fontWeight: 600 }}>Método Cuenta 1:</label>
+                                        <select
+                                            value={metodoPagoPrincipal}
+                                            onChange={(e) => setMetodoPagoPrincipal(e.target.value)}
+                                            className="form-input-clean"
+                                            style={{ marginTop: 4 }}
+                                        >
+                                            {METODOS_PAGO_OPCIONES.map((op) => (
+                                                <option key={op} value={op}>{op}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: 12.5, fontWeight: 600 }}>Método Cuenta 2 (Restante):</label>
+                                        <select
+                                            value={metodoPagoSecundario}
+                                            onChange={(e) => setMetodoPagoSecundario(e.target.value)}
+                                            className="form-input-clean"
+                                            style={{ marginTop: 4 }}
+                                        >
+                                            {METODOS_PAGO_OPCIONES.map((op) => (
+                                                <option key={op} value={op}>{op}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {modoDivision === 'porcentaje' && (
+                            <div style={{ marginBottom: 14 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+                                        División dinámica entre {porcentajesComensales.length} comensales registrados (Suma: {sumaPorcentajesActual}%)
+                                    </span>
+                                    <button
+                                        type="button"
+                                        className="secondary-outline-btn"
+                                        style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                        onClick={() => inicializarDivisionDinamica(pedidoMesaActiva.personas || 2, totalCuentaActiva)}
+                                    >
+                                        Partes iguales
+                                    </button>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
+                                    {porcentajesComensales.map((pct, idx) => {
+                                        const montoEquiv = ((totalCuentaActiva * Number(pct || 0)) / 100).toFixed(2);
+                                        return (
+                                            <div
+                                                key={idx}
+                                                style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '105px 95px 90px 1fr',
+                                                    alignItems: 'center',
+                                                    gap: 8,
+                                                    background: '#f8fafc',
+                                                    padding: '8px 10px',
+                                                    borderRadius: 8,
+                                                    fontSize: 12.5,
+                                                }}
+                                            >
+                                                <strong>Comensal {idx + 1}</strong>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        step="1"
+                                                        value={pct}
+                                                        onChange={(e) => {
+                                                            const nuevoVal = Math.max(0, Number(e.target.value || 0));
+                                                            setPorcentajesComensales((prev) =>
+                                                                prev.map((item, i) => (i === idx ? nuevoVal : item))
+                                                            );
+                                                        }}
+                                                        style={{ width: 62, padding: '5px 6px', borderRadius: 6, border: '1px solid #d1d5db' }}
+                                                    />
+                                                    <span>%</span>
+                                                </div>
+                                                <span style={{ fontWeight: 700, color: '#15803d' }}>${montoEquiv}</span>
+                                                <select
+                                                    value={metodosComensales[idx] || 'Efectivo'}
+                                                    onChange={(e) =>
+                                                        setMetodosComensales((prev) =>
+                                                            prev.map((m, i) => (i === idx ? e.target.value : m))
+                                                        )
+                                                    }
+                                                    style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12 }}
+                                                >
+                                                    {METODOS_PAGO_OPCIONES.map((op) => (
+                                                        <option key={op} value={op}>{op}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {modoDivision === 'monto' && (
+                            <div style={{ marginBottom: 14 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+                                        Suma ingresada: ${sumaMontosActual.toFixed(2)} / Total: ${totalCuentaActiva.toFixed(2)}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        className="secondary-outline-btn"
+                                        style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                        onClick={() => inicializarDivisionDinamica(pedidoMesaActiva.personas || 2, totalCuentaActiva)}
+                                    >
+                                        Distribuir equitativo
+                                    </button>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
+                                    {montosComensales.map((mVal, idx) => (
+                                        <div
+                                            key={idx}
+                                            style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: '110px 125px 1fr',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                background: '#f8fafc',
+                                                padding: '8px 10px',
+                                                borderRadius: 8,
+                                                fontSize: 12.5,
+                                            }}
+                                        >
+                                            <strong>Comensal {idx + 1}</strong>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <span>$</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max={totalCuentaActiva}
+                                                    step="0.5"
+                                                    value={mVal}
+                                                    onChange={(e) => {
+                                                        const nuevoMonto = Math.max(0, Number(e.target.value || 0));
+                                                        setMontosComensales((prev) =>
+                                                            prev.map((item, i) => (i === idx ? nuevoMonto : item))
+                                                        );
+                                                    }}
+                                                    style={{ width: 92, padding: '5px 6px', borderRadius: 6, border: '1px solid #d1d5db' }}
+                                                />
+                                            </div>
+                                            <select
+                                                value={metodosComensales[idx] || 'Efectivo'}
+                                                onChange={(e) =>
+                                                    setMetodosComensales((prev) =>
+                                                        prev.map((m, i) => (i === idx ? e.target.value : m))
+                                                    )
+                                                }
+                                                style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12 }}
+                                            >
+                                                {METODOS_PAGO_OPCIONES.map((op) => (
+                                                    <option key={op} value={op}>{op}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', gap: 10 }}>
                             <button
@@ -1550,7 +1948,17 @@ export default function VistaMesero() {
                             >
                                 Cancelar
                             </button>
-                            <button type="button" className="primary-dark-btn" style={{ flex: 2 }} onClick={procesarCobroCuenta}>
+                            <button
+                                type="button"
+                                className="primary-dark-btn"
+                                style={{
+                                    flex: 2,
+                                    opacity: errorValidacionCobro ? 0.5 : 1,
+                                    cursor: errorValidacionCobro ? 'not-allowed' : 'pointer',
+                                }}
+                                disabled={!!errorValidacionCobro}
+                                onClick={procesarCobroCuenta}
+                            >
                                 Confirmar pago y liberar Mesa {String(pedidoMesaActiva.numero_mesa).padStart(2, '0')}
                             </button>
                         </div>

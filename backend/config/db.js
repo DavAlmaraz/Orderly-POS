@@ -25,11 +25,25 @@ const estado = {
     mysqlDisponible: false,
     motorBaseDatos: 'MySQL 9.4.0 (OrderlyDB) + Respaldo Automático Diario ACID',
     usuarios: [
-        { id_Usuario: 1, id_usuario: 1, nombre: 'J. David', usuario_login: 'Jesus', rol: 'administrador', contrasena: HASH_ADMIN123, activo: true, turno: '8am - 6pm' },
-        { id_Usuario: 2, id_usuario: 2, nombre: 'Maria', usuario_login: 'Maria', rol: 'mesera', contrasena: HASH_ADMIN123, activo: true, turno: '9am - 5pm' },
-        { id_Usuario: 3, id_usuario: 3, nombre: 'Roberto', usuario_login: 'Roberto', rol: 'cocina', contrasena: HASH_ADMIN123, activo: true, turno: '8am - 4pm' },
-        { id_Usuario: 4, id_usuario: 4, nombre: 'Ana L.', usuario_login: 'Ana', rol: 'mesera', contrasena: HASH_ADMIN123, activo: true, turno: '9am - 5pm' },
+        { id_Usuario: 1, id_usuario: 1, nombre: 'J. David', usuario_login: 'Jesus', rol: 'administrador', contrasena: HASH_ADMIN123, activo: true, turno: '08:00 - 18:00', tipo_turno: 'Turno completo', hora_inicio: '08:00', hora_fin: '18:00' },
+        { id_Usuario: 2, id_usuario: 2, nombre: 'Maria', usuario_login: 'Maria', rol: 'mesera', contrasena: HASH_ADMIN123, activo: true, turno: '09:00 - 17:00', tipo_turno: 'Turno completo', hora_inicio: '09:00', hora_fin: '17:00' },
+        { id_Usuario: 3, id_usuario: 3, nombre: 'Roberto', usuario_login: 'Roberto', rol: 'cocina', contrasena: HASH_ADMIN123, activo: true, turno: '08:00 - 16:00', tipo_turno: 'Turno completo', hora_inicio: '08:00', hora_fin: '16:00' },
+        { id_Usuario: 4, id_usuario: 4, nombre: 'Ana L.', usuario_login: 'Ana', rol: 'mesera', contrasena: HASH_ADMIN123, activo: true, turno: '09:00 - 17:00', tipo_turno: 'Turno completo', hora_inicio: '09:00', hora_fin: '17:00' },
     ],
+    turnoActivo: {
+        id_turno: 1,
+        modalidad: 'Turno completo',
+        hora_inicio: '08:00',
+        hora_fin: '22:00',
+        horario_texto: '08:00 - 22:00',
+        id_responsable: 1,
+        responsable_nombre: 'J. David',
+        nombre_responsable: 'J. David',
+        mesera_asignada: 'Maria',
+        cocinero_asignado: 'Roberto',
+        notas: 'Servicio regular en salón principal',
+        estado: 'activo'
+    },
     platillos: [
         {
             Id_platillo: 1, id_platillo: 1,
@@ -287,8 +301,20 @@ const estado = {
 function recalcularTotalPedido(ped) {
     const detalles = ped.detalles || ped.platillos || [];
     const suma = detalles
-        .filter(d => d.estado_item !== 'agotado_eliminado')
-        .reduce((acc, item) => acc + Number(item.subtotal || item.Subtotal || (Number(item.precio || 95) * Number(item.cantidad || item.Cantidad || 1))), 0);
+        .filter((d) => {
+            if (d.estado_item === 'agotado_eliminado') return false;
+            if (d.sin_stock_evadido === true) return false;
+            const cant = Number(d.cantidad ?? d.Cantidad ?? 0);
+            return cant > 0;
+        })
+        .reduce((acc, item) => {
+            const precioUnit = Number(item.precio || item.Precio || 0);
+            const cant = Number(item.cantidad || item.Cantidad || 0);
+            const sub = Number((precioUnit * cant).toFixed(2));
+            item.subtotal = sub;
+            item.Subtotal = sub;
+            return acc + sub;
+        }, 0);
     ped.Total = Number(suma.toFixed(2));
     ped.total = ped.Total;
     return ped.Total;
