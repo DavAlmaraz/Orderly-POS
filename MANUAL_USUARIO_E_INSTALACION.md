@@ -141,13 +141,13 @@ Diseñado en color verde operativo (`#1F5C35` / `#4D7A5D`):
 - **Comandas pendientes**: Lista cronológica en tiempo real con el tiempo de espera, mesera responsable, platillos y notas especiales de preparación.
 - **Control por platillo**: Marque platillos individuales conforme avanzan en cocina y presione **Marcar comanda lista** al terminar para notificar al mesero mediante alerta emergente y notificación Push.
 - **Tiempo extendido o platillo agotado**: Informe retrasos de `+10 min` o notifique cuando un producto se agote para actualizar automáticamente las pantallas de salón.
-- **Platillos disponibles e inventario de cocina**: Habilite o deshabilite platillos del menú con un interruptor y consulte existencias de insumos en niveles **Óptimo**, **Bajo** o **Crítico**.
+- **Platillos disponibles e inventario de cocina**: Habilite o deshabilite platillos del menú con un interruptor y consulte existencias de insumos en niveles **Óptimo**, **Bajo** o **Crítico**. Si algún insumo requerido por la receta de un platillo es insuficiente, el sistema deshabilita el platillo automáticamente y bloquea su reactivación hasta reabastecer el ingrediente.
 
 ### 3.3 Módulo de Administración
 Diseñado en color naranja oscuro (`#6B3A07`):
 - **Dashboard — Resumen del día**: Monitoreo en tiempo real de ventas del día, mesas atendidas, tiempo promedio de servicio, alertas activas de inventario, gráfica de ventas por hora, platillos más vendidos, últimas transacciones y **desempeño del personal** por turno.
 - **Gestión del turno activo**: Haga clic en la etiqueta **Editar** del turno activo en la barra superior para cambiar la modalidad (*Turno completo*, *Medio turno matutino/vespertino*), horario de inicio/fin y responsables asignados.
-- **Catálogo de platillos y recetas**: Cree nuevos platillos vinculando exactamente qué **insumos de inventario** y en qué cantidad se requieren por porción; al vender o cancelar un platillo el inventario de materia prima se actualiza de forma automática.
+- **Catálogo de platillos y recetas**: Cree nuevos platillos vinculando exactamente qué **insumos de inventario** y en qué cantidad se requieren por porción; al vender o cancelar un platillo el inventario de materia prima se actualiza de forma automática y no es posible activar ni crear un platillo con `Stock` activo si falta algún insumo de su receta.
 - **Inventario y alertas en tiempo real**: Registre reabastecimientos o mermas; el sistema muestra alertas visuales y sonoras en tiempo real cuando un insumo entra en nivel bajo o crítico y permite consultar el directorio de proveedores.
 - **Reportes de ventas y Cierre de caja**: En **Reportes de ventas** filtre transacciones por método de pago o mesero y exporte a CSV; en **Cierre de caja** revise el resumen esperado y capture el conteo físico de efectivo para el arqueo final del turno.
 - **Usuarios, contraseñas y respaldos**: Gestione cuentas activas, restablezca contraseñas, configure la conexión MySQL Server 9.4.0 / Workbench 8.0, genere respaldos firmados con HMAC-SHA256 y obtenga el código QR de acceso móvil.
@@ -158,10 +158,14 @@ Diseñado en color naranja oscuro (`#6B3A07`):
 
 Para que sus compañeros o docentes prueben Orderly POS desde cualquier navegador o celular sin instalar programas ni configurar redes locales, el proyecto incluye el archivo **`render.yaml`** listo para **Render** (plan gratuito con **HTTPS automático**, WebSockets en tiempo real y compatibilidad completa para instalar la PWA en Android e iOS):
 
-1. Cree una cuenta gratuita en [render.com](https://render.com/) e inicie sesión con su cuenta de **GitHub**.
-2. En el panel de Render haga clic en **New + → Blueprint** (o **Web Service**) y seleccione su repositorio **`DavAlmaraz/Orderly-POS`**.
-3. Render detectará automáticamente **`render.yaml`** (compilará el frontend con `vite build` y arrancará el servidor unificado de `backend`). Solo presione **Deploy** / **Apply**.
-4. Al terminar, Render le dará un enlace público seguro (por ejemplo `https://orderly-pos.onrender.com`) para compartirlo directamente o escanear su código QR desde cualquier teléfono.
+1. Cree una cuenta gratuita (no requiere tarjeta) en [render.com](https://render.com/) e inicie sesión con su cuenta de **GitHub**.
+2. **Si usted no es el propietario del repositorio** (por ejemplo, se lo compartió un compañero): entre primero al repositorio en GitHub y haga clic en el botón **Fork** (esquina superior derecha) para guardar una copia en su propia cuenta.
+3. En el panel de Render haga clic en **New + → Blueprint** (o **Web Service**), conecte su cuenta de GitHub y seleccione el repositorio **`Orderly-POS`** (propio o mediante su *Fork*).
+4. Render detectará automáticamente **`render.yaml`**:
+   - En **Blueprint Name**, escriba un nombre identificador (por ejemplo, `Orderly POS`).
+   - Verifique que **Branch** esté en **`main`** (puede dejar el campo opcional vacío).
+   - Presione **Deploy Blueprint** (Render compilará el frontend con `vite build` y arrancará el servidor unificado de `backend`).
+5. Al terminar, Render le dará un enlace público seguro con **HTTPS** (por ejemplo `https://orderly-pos.onrender.com`) para compartirlo directamente o escanear su código QR desde cualquier teléfono.
 
 > **Notas del plan gratuito de Render**:
 > - Si pasan más de 15 minutos sin tráfico, el servicio gratuito entra en reposo y tarda entre 30 y 50 segundos en despertar al recibir la primera visita.
