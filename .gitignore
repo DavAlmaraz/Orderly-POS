@@ -147,3 +147,12 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Dependencias
+#node_modules/
+
+# Archivos de entorno (Secretos)
+#.env
+
+# Archivos de log
+#npm-debug.log*
