@@ -47,52 +47,31 @@ body {
 }
 
 /* ==========================================================================
-   LAYOUT PRINCIPAL CON MENÚ HAMBURGUESA (DRAWER COLAPSABLE Y RESPONSIVO)
+   LAYOUT PRINCIPAL CON BARRA LATERAL COMPACTABLE EN LÍNEA (64px <-> 245px)
    ========================================================================== */
 .app-layout {
   display: flex;
+  flex-direction: row;
   min-height: 100vh;
   position: relative;
 }
 
 .sidebar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 256px;
-  max-width: 85vw;
+  width: 245px;
   flex-shrink: 0;
   color: #ffffff;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   user-select: none;
-  transform: translateX(0);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
-  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.24s ease;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-x: hidden;
   overflow-y: auto;
-  z-index: 1050;
+  z-index: 900;
 }
 
 .sidebar.closed {
-  width: 256px;
-  transform: translateX(-105%);
-  box-shadow: none;
-  border: none;
-}
-
-.sidebar-backdrop {
-  display: none;
-}
-
-.sidebar-backdrop.open {
-  display: block;
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.46);
-  z-index: 1000;
+  width: 64px;
 }
 
 .sidebar.theme-admin {
@@ -105,6 +84,115 @@ body {
 
 .sidebar.theme-mesera {
   background-color: #2b3a4a;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+.sidebar-brand-row {
+  padding: 16px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sidebar.closed .sidebar-brand-row {
+  flex-direction: column;
+  padding: 14px 8px;
+  gap: 10px;
+}
+
+.sidebar-brand-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sidebar-brand-info .brand-logo-box {
+  margin-bottom: 0;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.sidebar.closed .sidebar-brand-text,
+.sidebar.closed .nav-section-label,
+.sidebar.closed .nav-item-text,
+.sidebar.closed .sidebar-user-text {
+  display: none;
+}
+
+.sidebar-toggle-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.sidebar-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.hamburger-line-white {
+  width: 18px;
+  height: 2px;
+  background-color: #ffffff;
+  border-radius: 2px;
+}
+
+.nav-rail-abbr {
+  display: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.sidebar.closed .nav-rail-abbr {
+  display: inline-block;
+}
+
+.sidebar.closed .sidebar-nav {
+  min-width: 64px;
+  padding: 8px 6px;
+}
+
+.sidebar.closed .nav-item {
+  justify-content: center;
+  padding: 10px 6px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+}
+
+.sidebar.closed .nav-item .nav-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 9px;
+  padding: 0 4px;
+}
+
+.sidebar.closed .sidebar-footer {
+  min-width: 64px;
+  justify-content: center;
+  padding: 12px 8px;
+}
+
+.mobile-menu-trigger {
+  display: none;
 }
 
 .sidebar-brand {
@@ -1204,7 +1292,7 @@ body {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 268px;
+    width: 245px;
     max-width: 82vw;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
     transform: translateX(0);
@@ -1212,7 +1300,7 @@ body {
   }
 
   .sidebar.closed {
-    width: 268px;
+    width: 245px;
     transform: translateX(-105%);
     box-shadow: none;
   }
@@ -1225,10 +1313,8 @@ body {
     z-index: 1000;
   }
 
-  .sidebar-close-mobile {
+  .mobile-menu-trigger {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .top-header {

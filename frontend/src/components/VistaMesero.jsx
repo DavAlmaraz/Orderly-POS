@@ -92,7 +92,9 @@ export default function VistaMesero() {
 
     function cambiarVista(nuevaVista) {
         setVistaMesera(nuevaVista);
-        setMenuAbierto(false);
+        if (window.innerWidth <= 860) {
+            setMenuAbierto(false);
+        }
     }
 
     function mostrarToast(mensaje, tipo = 'ok') {
@@ -775,21 +777,27 @@ export default function VistaMesero() {
 
                 <aside className={`sidebar theme-mesera ${menuAbierto ? '' : 'closed'}`}>
                     <div>
-                        <div className="sidebar-brand">
-                            <div>
+                        <div className="sidebar-brand-row">
+                            <div className="sidebar-brand-info">
                                 <div className="brand-logo-box">
                                     <div className="brand-logo-circle" />
                                 </div>
-                                <div className="brand-title">Orderly</div>
-                                <div className="brand-subtitle">Mesera · Salón</div>
+                                <div className="sidebar-brand-text">
+                                    <div className="brand-title">Orderly</div>
+                                    <div className="brand-subtitle">Mesera · Salón</div>
+                                </div>
                             </div>
                             <button
                                 type="button"
-                                className="sidebar-close-mobile"
-                                onClick={() => setMenuAbierto(false)}
-                                aria-label="Cerrar menú"
+                                className="sidebar-toggle-btn"
+                                onClick={() => setMenuAbierto((prev) => !prev)}
+                                title={menuAbierto ? 'Compactar menú' : 'Extender menú'}
+                                aria-label={menuAbierto ? 'Compactar menú' : 'Extender menú'}
+                                aria-expanded={menuAbierto}
                             >
-                                Cerrar
+                                <span className="hamburger-line-white" />
+                                <span className="hamburger-line-white" />
+                                <span className="hamburger-line-white" />
                             </button>
                         </div>
 
@@ -798,20 +806,26 @@ export default function VistaMesero() {
                             <button
                                 className={`nav-item ${vistaMesera === 'mapa_mesas' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('mapa_mesas')}
+                                title="Mapa de mesas"
                             >
-                                <span>Mapa de mesas</span>
+                                <span className="nav-rail-abbr">MES</span>
+                                <span className="nav-item-text">Mapa de mesas</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaMesera === 'nueva_comanda' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('nueva_comanda')}
+                                title="Nueva comanda"
                             >
-                                <span>Nueva comanda</span>
+                                <span className="nav-rail-abbr">NVA</span>
+                                <span className="nav-item-text">Nueva comanda</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaMesera === 'comanda_activa' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('comanda_activa')}
+                                title="Mis comandas activas"
                             >
-                                <span>Mis comandas activas</span>
+                                <span className="nav-rail-abbr">ACT</span>
+                                <span className="nav-item-text">Mis comandas activas</span>
                                 <span className="nav-badge">{pedidosActivosSalón.length}</span>
                             </button>
 
@@ -819,25 +833,34 @@ export default function VistaMesero() {
                             <button
                                 className={`nav-item ${vistaMesera === 'notificaciones' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('notificaciones')}
+                                title="Notificaciones"
                             >
-                                <span>Notificaciones</span>
+                                <span className="nav-rail-abbr">NTF</span>
+                                <span className="nav-item-text">Notificaciones</span>
                                 <span className="nav-badge">{estado.notificaciones.length}</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaMesera === 'historial' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('historial')}
+                                title="Mi historial"
                             >
-                                <span>Mi historial</span>
+                                <span className="nav-rail-abbr">HIS</span>
+                                <span className="nav-item-text">Mi historial</span>
                             </button>
-                            <button className="nav-item" onClick={handleCerrarSesion}>
-                                <span>Cerrar sesión</span>
+                            <button
+                                className="nav-item"
+                                onClick={handleCerrarSesion}
+                                title="Cerrar sesión"
+                            >
+                                <span className="nav-rail-abbr">SAL</span>
+                                <span className="nav-item-text">Cerrar sesión</span>
                             </button>
                         </nav>
                     </div>
 
-                    <div className="sidebar-footer">
+                    <div className="sidebar-footer" title={`${usuarioActual.nombre} · Mesera`}>
                         <div className="user-avatar">{usuarioActual.iniciales || 'MA'}</div>
-                        <div>
+                        <div className="sidebar-user-text">
                             <div className="user-meta-name">{usuarioActual.nombre}</div>
                             <div className="user-meta-role">Mesera · {usuarioActual.turno || '09:00 - 17:00'}</div>
                         </div>
@@ -849,9 +872,9 @@ export default function VistaMesero() {
                         <div className="header-left-group">
                             <button
                                 type="button"
-                                className="hamburger-btn"
+                                className="hamburger-btn mobile-menu-trigger"
                                 onClick={() => setMenuAbierto((prev) => !prev)}
-                                title={menuAbierto ? 'Ocultar menú lateral' : 'Mostrar menú lateral'}
+                                title="Desplegar menú"
                                 aria-label="Menú principal"
                             >
                                 <span className="hamburger-line" />

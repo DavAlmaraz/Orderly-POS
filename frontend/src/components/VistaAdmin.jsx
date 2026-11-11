@@ -59,6 +59,10 @@ export default function VistaAdmin() {
     const [filtroTransacciones, setFiltroTransacciones] = useState('Todas');
     const [filtroComandasAdmin, setFiltroComandasAdmin] = useState('activas');
     const [filtroDesempenoRol, setFiltroDesempenoRol] = useState('todos');
+    const [filtroReporteMetodo, setFiltroReporteMetodo] = useState('Todos');
+    const [filtroReporteMesera, setFiltroReporteMesera] = useState('Todas');
+    const [efectivoContadoCaja, setEfectivoContadoCaja] = useState('');
+    const [observacionCierreCaja, setObservacionCierreCaja] = useState('');
     const [mesaInspeccionada, setMesaInspeccionada] = useState(null);
     const [platilloEditando, setPlatilloEditando] = useState(null);
 
@@ -127,7 +131,9 @@ export default function VistaAdmin() {
 
     function cambiarVista(nuevaVista) {
         setVistaAdmin(nuevaVista);
-        setMenuAbierto(false);
+        if (window.innerWidth <= 860) {
+            setMenuAbierto(false);
+        }
     }
 
     function mostrarToast(mensaje, tipo = 'ok') {
@@ -614,21 +620,27 @@ export default function VistaAdmin() {
 
                 <aside className={`sidebar theme-admin ${menuAbierto ? '' : 'closed'}`}>
                     <div>
-                        <div className="sidebar-brand">
-                            <div>
+                        <div className="sidebar-brand-row">
+                            <div className="sidebar-brand-info">
                                 <div className="brand-logo-box">
                                     <div className="brand-logo-circle" />
                                 </div>
-                                <div className="brand-title">Orderly</div>
-                                <div className="brand-subtitle">Administrador</div>
+                                <div className="sidebar-brand-text">
+                                    <div className="brand-title">Orderly</div>
+                                    <div className="brand-subtitle">Administrador</div>
+                                </div>
                             </div>
                             <button
                                 type="button"
-                                className="sidebar-close-mobile"
-                                onClick={() => setMenuAbierto(false)}
-                                aria-label="Cerrar menú"
+                                className="sidebar-toggle-btn"
+                                onClick={() => setMenuAbierto((prev) => !prev)}
+                                title={menuAbierto ? 'Compactar menú' : 'Extender menú'}
+                                aria-label={menuAbierto ? 'Compactar menú' : 'Extender menú'}
+                                aria-expanded={menuAbierto}
                             >
-                                Cerrar
+                                <span className="hamburger-line-white" />
+                                <span className="hamburger-line-white" />
+                                <span className="hamburger-line-white" />
                             </button>
                         </div>
 
@@ -637,55 +649,71 @@ export default function VistaAdmin() {
                             <button
                                 className={`nav-item ${vistaAdmin === 'dashboard' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('dashboard')}
+                                title="Resumen del día"
                             >
-                                <span>Resumen del día</span>
+                                <span className="nav-rail-abbr">RES</span>
+                                <span className="nav-item-text">Resumen del día</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaAdmin === 'mesas' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('mesas')}
+                                title="Mesas en tiempo real"
                             >
-                                <span>Mesas en tiempo real</span>
+                                <span className="nav-rail-abbr">MES</span>
+                                <span className="nav-item-text">Mesas en tiempo real</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaAdmin === 'comandas' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('comandas')}
+                                title="Comandas activas"
                             >
-                                <span>Comandas activas</span>
+                                <span className="nav-rail-abbr">COM</span>
+                                <span className="nav-item-text">Comandas activas</span>
                             </button>
 
                             <div className="nav-section-label">GESTIÓN</div>
                             <button
                                 className={`nav-item ${vistaAdmin === 'catalogo' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('catalogo')}
+                                title="Platillos y menú"
                             >
-                                <span>Platillos y menú</span>
+                                <span className="nav-rail-abbr">MNU</span>
+                                <span className="nav-item-text">Platillos y menú</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaAdmin === 'inventario' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('inventario')}
+                                title="Inventario"
                             >
-                                <span>Inventario</span>
+                                <span className="nav-rail-abbr">INV</span>
+                                <span className="nav-item-text">Inventario</span>
                                 <span className="nav-badge">{estado.alertasActivasCount}</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaAdmin === 'usuarios' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('usuarios')}
+                                title="Usuarios y roles"
                             >
-                                <span>Usuarios y roles</span>
+                                <span className="nav-rail-abbr">USR</span>
+                                <span className="nav-item-text">Usuarios y roles</span>
                             </button>
 
                             <div className="nav-section-label">FINANZAS</div>
                             <button
                                 className={`nav-item ${vistaAdmin === 'reportes' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('reportes')}
+                                title="Reportes de ventas"
                             >
-                                <span>Reportes de ventas</span>
+                                <span className="nav-rail-abbr">RPT</span>
+                                <span className="nav-item-text">Reportes de ventas</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaAdmin === 'cierre_caja' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('cierre_caja')}
+                                title="Cierre de caja"
                             >
-                                <span>Cierre de caja</span>
+                                <span className="nav-rail-abbr">CAJ</span>
+                                <span className="nav-item-text">Cierre de caja</span>
                             </button>
 
                             <div className="nav-section-label">CUENTA</div>
@@ -695,18 +723,25 @@ export default function VistaAdmin() {
                                     cambiarVista('configuracion');
                                     cargarQrRed();
                                 }}
+                                title="Configuración y respaldos"
                             >
-                                <span>Configuración / Respaldos</span>
+                                <span className="nav-rail-abbr">CFG</span>
+                                <span className="nav-item-text">Configuración / Respaldos</span>
                             </button>
-                            <button className="nav-item" onClick={handleCerrarSesion}>
-                                <span>Cerrar sesión</span>
+                            <button
+                                className="nav-item"
+                                onClick={handleCerrarSesion}
+                                title="Cerrar sesión"
+                            >
+                                <span className="nav-rail-abbr">SAL</span>
+                                <span className="nav-item-text">Cerrar sesión</span>
                             </button>
                         </nav>
                     </div>
 
-                    <div className="sidebar-footer">
+                    <div className="sidebar-footer" title={`${usuarioActual.nombre} · Administrador`}>
                         <div className="user-avatar">{usuarioActual.iniciales || 'JD'}</div>
-                        <div>
+                        <div className="sidebar-user-text">
                             <div className="user-meta-name">{usuarioActual.nombre}</div>
                             <div className="user-meta-role">Administrador</div>
                         </div>
@@ -718,9 +753,9 @@ export default function VistaAdmin() {
                         <div className="header-left-group">
                             <button
                                 type="button"
-                                className="hamburger-btn"
+                                className="hamburger-btn mobile-menu-trigger"
                                 onClick={() => setMenuAbierto((prev) => !prev)}
-                                title={menuAbierto ? 'Ocultar menú lateral' : 'Mostrar menú lateral'}
+                                title="Desplegar menú"
                                 aria-label="Menú principal"
                             >
                                 <span className="hamburger-line" />
@@ -735,7 +770,7 @@ export default function VistaAdmin() {
                                 {vistaAdmin === 'inventario' && 'Inventario de insumos y proveedores'}
                                 {vistaAdmin === 'usuarios' && 'Usuarios, contraseñas y turnos'}
                                 {vistaAdmin === 'reportes' && 'Reportes de ventas'}
-                                {vistaAdmin === 'cierre_caja' && 'Cierre de caja por método de pago'}
+                                {vistaAdmin === 'cierre_caja' && 'Cierre de caja y arqueo de turno'}
                                 {vistaAdmin === 'configuracion' && 'Respaldos y bitácora de actividad'}
                             </h1>
                         </div>
@@ -1821,88 +1856,281 @@ export default function VistaAdmin() {
                             </div>
                         )}
 
-                        {(vistaAdmin === 'reportes' || vistaAdmin === 'cierre_caja') && (
-                            <div className="panel-card">
-                                <div className="panel-card-title">
-                                    Reporte Financiero y Corte de Caja por Método de Pago
-                                </div>
-                                <div className="kpi-grid" style={{ marginTop: 12 }}>
-                                    <div className="kpi-card">
-                                        <div className="kpi-label">Ventas Totales Registradas</div>
-                                        <div className="kpi-value">${estado.metricasDia.ventasHoy.toLocaleString('en-US')}</div>
-                                        <div className="kpi-trend">Corte del turno actual</div>
-                                    </div>
-                                    <div className="kpi-card">
-                                        <div className="kpi-label">Pagos en Efectivo</div>
-                                        <div className="kpi-value">
-                                            $
-                                            {estado.pagos
-                                                .filter((p) => p.metodo.toLowerCase().includes('efectivo'))
-                                                .reduce((acc, p) => acc + p.monto, 0)
-                                                .toFixed(2)}
-                                        </div>
-                                        <div className="kpi-trend">En caja física</div>
-                                    </div>
-                                    <div className="kpi-card">
-                                        <div className="kpi-label">Tarjetas (Crédito / Débito)</div>
-                                        <div className="kpi-value">
-                                            $
-                                            {estado.pagos
-                                                .filter((p) => p.metodo.toLowerCase().includes('crédito') || p.metodo.toLowerCase().includes('débito'))
-                                                .reduce((acc, p) => acc + p.monto, 0)
-                                                .toFixed(2)}
-                                        </div>
-                                        <div className="kpi-trend">Terminal bancaria</div>
-                                    </div>
-                                    <div className="kpi-card">
-                                        <div className="kpi-label">Transferencias y Monederos</div>
-                                        <div className="kpi-value">
-                                            $
-                                            {estado.pagos
-                                                .filter(
-                                                    (p) =>
-                                                        p.metodo.toLowerCase().includes('transferencia') ||
-                                                        p.metodo.toLowerCase().includes('monedero')
-                                                )
-                                                .reduce((acc, p) => acc + p.monto, 0)
-                                                .toFixed(2)}
-                                        </div>
-                                        <div className="kpi-trend">SPEI / Digital</div>
-                                    </div>
-                                </div>
+                        {vistaAdmin === 'reportes' && (() => {
+                            const pagosFiltradosReporte = estado.pagos.filter((p) => {
+                                const m = String(p.metodo || '').toLowerCase();
+                                const okMetodo =
+                                    filtroReporteMetodo === 'Todos' ||
+                                    (filtroReporteMetodo === 'Efectivo' && m.includes('efectivo')) ||
+                                    (filtroReporteMetodo === 'Tarjeta' && (m.includes('crédito') || m.includes('débito') || m.includes('tarjeta'))) ||
+                                    (filtroReporteMetodo === 'Transferencia' && (m.includes('transferencia') || m.includes('monedero')));
+                                const okMesera = filtroReporteMesera === 'Todas' || p.mesera === filtroReporteMesera;
+                                return okMetodo && okMesera;
+                            });
+                            const totalFiltrado = pagosFiltradosReporte.reduce((acc, p) => acc + Number(p.monto || 0), 0);
+                            const meserasUnicas = [...new Set(estado.pagos.map((p) => p.mesera).filter(Boolean))];
+                            const descargarCsv = () => {
+                                const filas = [
+                                    ['Folio', 'Mesa', 'Concepto', 'Mesera', 'Metodo', 'Monto', 'Hora'].join(','),
+                                    ...pagosFiltradosReporte.map((p) =>
+                                        [
+                                            p.id_pago,
+                                            `"${p.numero_mesa}"`,
+                                            `"${p.concepto_division || ''}"`,
+                                            `"${p.mesera || ''}"`,
+                                            `"${p.metodo || ''}"`,
+                                            Number(p.monto || 0).toFixed(2),
+                                            `"${p.hora || ''}"`,
+                                        ].join(',')
+                                    ),
+                                ].join('\n');
+                                const blob = new Blob([filas], { type: 'text/csv;charset=utf-8;' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'orderly-reporte-ventas.csv';
+                                a.click();
+                                URL.revokeObjectURL(url);
+                                mostrarToast('Reporte de ventas exportado en CSV.', 'ok');
+                            };
 
-                                <div className="table-responsive">
-                                    <table className="data-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Folio</th>
-                                                <th>Mesa</th>
-                                                <th>Concepto / División</th>
-                                                <th>Mesera</th>
-                                                <th>Método</th>
-                                                <th>Monto</th>
-                                                <th>Hora</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {estado.pagos.map((p) => (
-                                                <tr key={p.id_pago}>
-                                                    <td>#{p.id_pago}</td>
-                                                    <td style={{ fontWeight: 700 }}>{p.numero_mesa}</td>
-                                                    <td>{p.concepto_division}</td>
-                                                    <td>{p.mesera}</td>
-                                                    <td>
-                                                        <span className="pill-badge green">{p.metodo}</span>
-                                                    </td>
-                                                    <td style={{ fontWeight: 700 }}>${Number(p.monto).toFixed(2)}</td>
-                                                    <td>{p.hora}</td>
-                                                </tr>
+                            return (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    <div className="panel-card">
+                                        <div className="panel-card-header">
+                                            <span className="panel-card-title" style={{ marginBottom: 0 }}>
+                                                Filtros analíticos de ventas
+                                            </span>
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                                <button type="button" className="secondary-outline-btn" onClick={descargarCsv}>
+                                                    Exportar CSV
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="primary-dark-btn"
+                                                    onClick={() => cambiarVista('cierre_caja')}
+                                                >
+                                                    Ir a Cierre de caja
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10, marginBottom: 14 }}>
+                                            {['Todos', 'Efectivo', 'Tarjeta', 'Transferencia'].map((met) => (
+                                                <button
+                                                    key={met}
+                                                    type="button"
+                                                    className={`cat-tab ${filtroReporteMetodo === met ? 'active' : ''}`}
+                                                    onClick={() => setFiltroReporteMetodo(met)}
+                                                >
+                                                    {met}
+                                                </button>
                                             ))}
-                                        </tbody>
-                                    </table>
+
+                                            <select
+                                                value={filtroReporteMesera}
+                                                onChange={(e) => setFiltroReporteMesera(e.target.value)}
+                                                className="form-input-clean"
+                                                style={{ width: 'auto', minWidth: 180 }}
+                                            >
+                                                <option value="Todas">Todas las meseras</option>
+                                                {meserasUnicas.map((mes) => (
+                                                    <option key={mes} value={mes}>
+                                                        {mes}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="kpi-grid">
+                                            <div className="kpi-card">
+                                                <div className="kpi-label">Total del filtro seleccionado</div>
+                                                <div className="kpi-value">${totalFiltrado.toFixed(2)}</div>
+                                                <div className="kpi-trend">{pagosFiltradosReporte.length} transacciones</div>
+                                            </div>
+                                            <div className="kpi-card">
+                                                <div className="kpi-label">Ticket promedio filtrado</div>
+                                                <div className="kpi-value">
+                                                    ${(totalFiltrado / Math.max(1, pagosFiltradosReporte.length)).toFixed(2)}
+                                                </div>
+                                                <div className="kpi-trend">Por operación cobrada</div>
+                                            </div>
+                                            <div className="kpi-card">
+                                                <div className="kpi-label">Platillo más vendido</div>
+                                                <div className="kpi-value" style={{ fontSize: 18 }}>
+                                                    {estado.metricasDia.platillosVendidosHoy?.[0]?.nombre || 'Enchiladas verdes'}
+                                                </div>
+                                                <div className="kpi-trend">
+                                                    {estado.metricasDia.platillosVendidosHoy?.[0]?.cantidad || 0} órdenes hoy
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="panel-card">
+                                        <div className="panel-card-title">Detalle de ventas filtradas</div>
+                                        <div className="table-responsive">
+                                            <table className="data-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Folio</th>
+                                                        <th>Mesa</th>
+                                                        <th>Concepto / División</th>
+                                                        <th>Mesera</th>
+                                                        <th>Método</th>
+                                                        <th>Monto</th>
+                                                        <th>Hora</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {pagosFiltradosReporte.map((p) => (
+                                                        <tr key={p.id_pago}>
+                                                            <td>#{p.id_pago}</td>
+                                                            <td style={{ fontWeight: 700 }}>{p.numero_mesa}</td>
+                                                            <td>{p.concepto_division}</td>
+                                                            <td>{p.mesera}</td>
+                                                            <td>
+                                                                <span className="pill-badge green">{p.metodo}</span>
+                                                            </td>
+                                                            <td style={{ fontWeight: 700 }}>${Number(p.monto).toFixed(2)}</td>
+                                                            <td>{p.hora}</td>
+                                                        </tr>
+                                                    ))}
+                                                    {pagosFiltradosReporte.length === 0 && (
+                                                        <tr>
+                                                            <td colSpan={7} style={{ textAlign: 'center', color: '#6b7280', padding: 20 }}>
+                                                                No hay transacciones registradas con este filtro.
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })()}
+
+                        {vistaAdmin === 'cierre_caja' && (() => {
+                            const totalEfectivo = estado.pagos
+                                .filter((p) => p.metodo.toLowerCase().includes('efectivo'))
+                                .reduce((acc, p) => acc + p.monto, 0);
+                            const totalTarjetas = estado.pagos
+                                .filter((p) => p.metodo.toLowerCase().includes('crédito') || p.metodo.toLowerCase().includes('débito'))
+                                .reduce((acc, p) => acc + p.monto, 0);
+                            const totalDigital = estado.pagos
+                                .filter((p) => p.metodo.toLowerCase().includes('transferencia') || p.metodo.toLowerCase().includes('monedero'))
+                                .reduce((acc, p) => acc + p.monto, 0);
+                            const contadoNum = Number(efectivoContadoCaja || 0);
+                            const hayConteo = efectivoContadoCaja !== '';
+                            const diferenciaCaja = Number((contadoNum - totalEfectivo).toFixed(2));
+
+                            return (
+                                <div className="split-workspace">
+                                    <div className="panel-card">
+                                        <div className="panel-card-header">
+                                            <span className="panel-card-title" style={{ marginBottom: 0 }}>
+                                                Resumen esperado de corte por forma de cobro
+                                            </span>
+                                            <button
+                                                type="button"
+                                                className="secondary-outline-btn"
+                                                onClick={() => cambiarVista('reportes')}
+                                            >
+                                                Ver detalle en Reportes
+                                            </button>
+                                        </div>
+
+                                        <div className="kpi-grid" style={{ marginTop: 12 }}>
+                                            <div className="kpi-card">
+                                                <div className="kpi-label">Efectivo esperado en caja</div>
+                                                <div className="kpi-value">${totalEfectivo.toFixed(2)}</div>
+                                                <div className="kpi-trend">Monto teórico a arquear</div>
+                                            </div>
+                                            <div className="kpi-card">
+                                                <div className="kpi-label">Terminal bancaria (Tarjetas)</div>
+                                                <div className="kpi-value">${totalTarjetas.toFixed(2)}</div>
+                                                <div className="kpi-trend">Conciliación con vouchers</div>
+                                            </div>
+                                            <div className="kpi-card">
+                                                <div className="kpi-label">Transferencias / Monederos</div>
+                                                <div className="kpi-value">${totalDigital.toFixed(2)}</div>
+                                                <div className="kpi-trend">Validar depósitos SPEI</div>
+                                            </div>
+                                            <div className="kpi-card">
+                                                <div className="kpi-label">Total general del turno</div>
+                                                <div className="kpi-value">${(totalEfectivo + totalTarjetas + totalDigital).toFixed(2)}</div>
+                                                <div className="kpi-trend">{estado.pagos.length} cobros registrados</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="panel-card">
+                                        <div className="panel-card-title">Arqueo físico y validación final de turno</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                            <div>
+                                                <label className="form-field-label">Efectivo físico contado en gaveta ($):</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    placeholder={totalEfectivo.toFixed(2)}
+                                                    value={efectivoContadoCaja}
+                                                    onChange={(e) => setEfectivoContadoCaja(e.target.value)}
+                                                    className="form-input-clean"
+                                                />
+                                            </div>
+
+                                            {hayConteo && (
+                                                <div
+                                                    style={{
+                                                        padding: '10px 12px',
+                                                        borderRadius: 8,
+                                                        fontSize: 13,
+                                                        fontWeight: 600,
+                                                        background:
+                                                            diferenciaCaja === 0 ? '#dcfce7' : diferenciaCaja < 0 ? '#fee2e2' : '#fef3c7',
+                                                        color:
+                                                            diferenciaCaja === 0 ? '#166534' : diferenciaCaja < 0 ? '#991b1b' : '#92400e',
+                                                    }}
+                                                >
+                                                    {diferenciaCaja === 0
+                                                        ? 'Cuadre exacto: $0.00 de diferencia en efectivo.'
+                                                        : diferenciaCaja < 0
+                                                            ? `Faltante detectado: -$${Math.abs(diferenciaCaja).toFixed(2)}`
+                                                            : `Sobrante detectado: +$${diferenciaCaja.toFixed(2)}`}
+                                                </div>
+                                            )}
+
+                                            <div>
+                                                <label className="form-field-label">Observaciones de cierre / incidencia:</label>
+                                                <textarea
+                                                    rows={3}
+                                                    placeholder="Notas opcionales del encargado al cerrar turno"
+                                                    value={observacionCierreCaja}
+                                                    onChange={(e) => setObservacionCierreCaja(e.target.value)}
+                                                    className="form-input-clean"
+                                                />
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                className="primary-dark-btn"
+                                                onClick={async () => {
+                                                    await dispararRespaldoManual();
+                                                    mostrarToast(
+                                                        `Cierre de caja confirmado (${hayConteo ? `diferencia $${diferenciaCaja.toFixed(2)}` : 'respaldo guardado'}).`,
+                                                        'ok'
+                                                    );
+                                                }}
+                                            >
+                                                Confirmar cierre de turno y respaldar caja
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                         {vistaAdmin === 'configuracion' && (
                             <div className="split-workspace">

@@ -41,7 +41,9 @@ export default function VistaCocina() {
 
     function cambiarVista(nuevaVista) {
         setVistaCocina(nuevaVista);
-        setMenuAbierto(false);
+        if (window.innerWidth <= 860) {
+            setMenuAbierto(false);
+        }
     }
 
     function mostrarToast(mensaje, tipo = 'ok') {
@@ -318,21 +320,27 @@ export default function VistaCocina() {
 
                 <aside className={`sidebar theme-cocina ${menuAbierto ? '' : 'closed'}`}>
                     <div>
-                        <div className="sidebar-brand">
-                            <div>
+                        <div className="sidebar-brand-row">
+                            <div className="sidebar-brand-info">
                                 <div className="brand-logo-box">
                                     <div className="brand-logo-circle" />
                                 </div>
-                                <div className="brand-title">Orderly</div>
-                                <div className="brand-subtitle">Cocina (KDS)</div>
+                                <div className="sidebar-brand-text">
+                                    <div className="brand-title">Orderly</div>
+                                    <div className="brand-subtitle">Cocina (KDS)</div>
+                                </div>
                             </div>
                             <button
                                 type="button"
-                                className="sidebar-close-mobile"
-                                onClick={() => setMenuAbierto(false)}
-                                aria-label="Cerrar menú"
+                                className="sidebar-toggle-btn"
+                                onClick={() => setMenuAbierto((prev) => !prev)}
+                                title={menuAbierto ? 'Compactar menú' : 'Extender menú'}
+                                aria-label={menuAbierto ? 'Compactar menú' : 'Extender menú'}
+                                aria-expanded={menuAbierto}
                             >
-                                Cerrar
+                                <span className="hamburger-line-white" />
+                                <span className="hamburger-line-white" />
+                                <span className="hamburger-line-white" />
                             </button>
                         </div>
 
@@ -341,48 +349,63 @@ export default function VistaCocina() {
                             <button
                                 className={`nav-item ${vistaCocina === 'pendientes' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('pendientes')}
+                                title="Comandas pendientes"
                             >
-                                <span>Comandas pendientes</span>
+                                <span className="nav-rail-abbr">PEN</span>
+                                <span className="nav-item-text">Comandas pendientes</span>
                                 <span className="nav-badge">{comandasPendientesCocina.length}</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaCocina === 'listas' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('listas')}
+                                title="Comandas listas"
                             >
-                                <span>Comandas listas</span>
+                                <span className="nav-rail-abbr">LST</span>
+                                <span className="nav-item-text">Comandas listas</span>
                             </button>
 
                             <div className="nav-section-label">MENÚ DEL DÍA</div>
                             <button
                                 className={`nav-item ${vistaCocina === 'disponibles' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('disponibles')}
+                                title="Platillos disponibles"
                             >
-                                <span>Platillos disponibles</span>
+                                <span className="nav-rail-abbr">PLT</span>
+                                <span className="nav-item-text">Platillos disponibles</span>
                             </button>
                             <button
                                 className={`nav-item ${vistaCocina === 'inventario_cocina' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('inventario_cocina')}
+                                title="Inventario de cocina"
                             >
-                                <span>Inventario de cocina</span>
+                                <span className="nav-rail-abbr">INV</span>
+                                <span className="nav-item-text">Inventario de cocina</span>
                             </button>
 
                             <div className="nav-section-label">CUENTA</div>
                             <button
                                 className={`nav-item ${vistaCocina === 'notificaciones' ? 'active' : ''}`}
                                 onClick={() => cambiarVista('notificaciones')}
+                                title="Notificaciones"
                             >
-                                <span>Notificaciones</span>
+                                <span className="nav-rail-abbr">NTF</span>
+                                <span className="nav-item-text">Notificaciones</span>
                                 <span className="nav-badge">{estado.notificaciones.length}</span>
                             </button>
-                            <button className="nav-item" onClick={handleCerrarSesion}>
-                                <span>Cerrar sesión</span>
+                            <button
+                                className="nav-item"
+                                onClick={handleCerrarSesion}
+                                title="Cerrar sesión"
+                            >
+                                <span className="nav-rail-abbr">SAL</span>
+                                <span className="nav-item-text">Cerrar sesión</span>
                             </button>
                         </nav>
                     </div>
 
-                    <div className="sidebar-footer">
+                    <div className="sidebar-footer" title={`${usuarioActual.nombre} · Cocinero en jefe`}>
                         <div className="user-avatar">{usuarioActual.iniciales || 'RO'}</div>
-                        <div>
+                        <div className="sidebar-user-text">
                             <div className="user-meta-name">{usuarioActual.nombre}</div>
                             <div className="user-meta-role">Cocinero en jefe · {usuarioActual.turno || '8am - 4pm'}</div>
                         </div>
@@ -394,9 +417,9 @@ export default function VistaCocina() {
                         <div className="header-left-group">
                             <button
                                 type="button"
-                                className="hamburger-btn"
+                                className="hamburger-btn mobile-menu-trigger"
                                 onClick={() => setMenuAbierto((prev) => !prev)}
-                                title={menuAbierto ? 'Ocultar menú lateral' : 'Mostrar menú lateral'}
+                                title="Desplegar menú"
                                 aria-label="Menú principal"
                             >
                                 <span className="hamburger-line" />
