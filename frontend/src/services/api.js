@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+export const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:3000` : 'http://localhost:3000');
 export const API_BASE_URL = `${SOCKET_URL}/api`;
 export const STORAGE_KEY_SESION = 'orderly_pos_sesion';
 
