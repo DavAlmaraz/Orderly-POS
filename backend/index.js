@@ -1771,17 +1771,22 @@ function obtenerIpsRedLocal() {
     const interfaces = os.networkInterfaces();
     const resultados = [];
     for (const [nombre, entradas] of Object.entries(interfaces)) {
+        if (/virtualbox|vmware|hyper-v|vethernet|bluetooth|loopback|wsl/i.test(nombre)) {
+            continue;
+        }
         for (const info of entradas || []) {
-            if (info.family === 'IPv4' && !info.internal) {
-                resultados.push({ interfaz: nombre, ip: info.address });
-            }
+            if (info.family !== 'IPv4' || info.internal) continue;
+            if (info.address.startsWith('169.254.') || info.address.startsWith('192.168.56.')) continue;
+            resultados.push({ interfaz: nombre, ip: info.address });
         }
     }
-    resultados.sort((a, b) => {
-        const esWifiA = /wi-?fi|wlan|wireless/i.test(a.interfaz) ? 0 : 1;
-        const esWifiB = /wi-?fi|wlan|wireless/i.test(b.interfaz) ? 0 : 1;
-        return esWifiA - esWifiB;
-    });
+    const prioridadInterfaz = (item) => {
+        if (/ethernet/i.test(item.interfaz)) return 0; // Cable Ethernet principal (ej. 192.168.1.69)
+        if (item.ip.startsWith('192.168.137.')) return 1; // Zona móvil compartida desde Windows (Hotspot)
+        if (/wi-?fi|wlan|wireless/i.test(item.interfaz)) return 2;
+        return 3;
+    };
+    resultados.sort((a, b) => prioridadInterfaz(a) - prioridadInterfaz(b));
     return resultados;
 }
 
