@@ -458,17 +458,11 @@ export default function VistaCocina() {
                                             </button>
                                         ))}
                                     </div>
-                                    <span style={{ fontSize: 12, color: '#6b7280' }}>
-                                        Toque cualquier platillo de una tarjeta para marcar su avance de preparación
-                                    </span>
                                 </div>
 
                                 {comandasPendientesFiltradas.length === 0 ? (
                                     <div className="panel-card" style={{ textAlign: 'center', padding: 36, marginBottom: 20 }}>
-                                        <div className="panel-card-title">No hay comandas en este filtro en este momento.</div>
-                                        <p style={{ color: '#6b7280', fontSize: 13.5 }}>
-                                            Cuando una mesera envíe una comanda desde su dispositivo, aparecerá aquí en tiempo real.
-                                        </p>
+                                        <div className="panel-card-title" style={{ marginBottom: 0 }}>Sin comandas pendientes</div>
                                     </div>
                                 ) : (
                                     <div className="kitchen-orders-grid">
@@ -618,7 +612,7 @@ export default function VistaCocina() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                         <span className="alert-dot" />
                                         <span>
-                                            <strong>3 insumos por debajo del mínimo</strong> — se enviaron alertas automáticas al administrador
+                                            <strong>{estado.inventario.filter((i) => i.nivel !== 'OK').length} insumos por debajo del mínimo</strong>
                                         </span>
                                     </div>
                                 </div>
@@ -789,7 +783,7 @@ export default function VistaCocina() {
                         {vistaCocina === 'disponibles' && (
                             <div className="panel-card">
                                 <div className="panel-card-title">
-                                    Disponibilidad del menú en tiempo real — active o desactive platillos
+                                    Disponibilidad del menú
                                 </div>
                                 <div className="availability-grid">
                                     {estado.platillos.map((pl) => {

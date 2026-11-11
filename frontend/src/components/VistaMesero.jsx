@@ -894,7 +894,7 @@ export default function VistaMesero() {
                                             ? 'Por cobrar / Lista en mesa'
                                             : `En cocina · ${pedidoMesaActiva.minutos_espera || 1} min`}
                                     </span>
-                                    <span className="pill-badge gray">{pedidoMesaActiva.personas || 2} personas (máx. {MAX_PERSONAS_MESA})</span>
+                                    <span className="pill-badge gray">{pedidoMesaActiva.personas || 2} personas</span>
                                 </>
                             )}
                         </div>
@@ -905,7 +905,7 @@ export default function VistaMesero() {
                             <div className="panel-card">
                                 <div className="panel-card-header">
                                     <div className="panel-card-title" style={{ marginBottom: 0 }}>
-                                        Seleccione una mesa libre para abrir comanda o una ocupada para gestionar su cuenta
+                                        Mesas del salón
                                     </div>
                                     <div className="category-tabs" style={{ margin: 0 }}>
                                         {[
@@ -1072,9 +1072,6 @@ export default function VistaMesero() {
                                             />
                                         </div>
                                     </div>
-                                    <div style={{ fontSize: 11.5, color: '#6b7280', marginBottom: 10 }}>
-                                        Capacidad máxima permitida por mesa: <strong>{MAX_PERSONAS_MESA} comensales</strong>.
-                                    </div>
 
                                     {conflictoStockCarrito && (
                                         <div className="alert-banner" style={{ marginBottom: 12 }}>
@@ -1095,8 +1092,7 @@ export default function VistaMesero() {
                                                 marginBottom: '14px',
                                             }}
                                         >
-                                            Toque cualquier platillo del catálogo para agregarlo a la Mesa{' '}
-                                            {String(mesaSeleccionadaNueva).padStart(2, '0')}.
+                                            Sin platillos seleccionados
                                         </div>
                                     ) : (
                                         carritoComanda.map((item) => {
@@ -1143,7 +1139,7 @@ export default function VistaMesero() {
                                                     </div>
                                                     <input
                                                         type="text"
-                                                        placeholder="Observación del platillo (ej. sin cebolla)..."
+                                                        placeholder="Observaciones"
                                                         value={item.nota || ''}
                                                         onChange={(e) => cambiarNotaItemCarrito(item.id_platillo, e.target.value)}
                                                         style={{
@@ -1163,11 +1159,11 @@ export default function VistaMesero() {
 
                                     <div style={{ marginTop: 14 }}>
                                         <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>
-                                            Observaciones generales para cocina
+                                            Observaciones generales
                                         </div>
                                         <input
                                             type="text"
-                                            placeholder="Ej. Alergias o indicaciones especiales de la mesa..."
+                                            placeholder="Indicaciones para cocina"
                                             value={notaGeneralNueva}
                                             onChange={(e) => setNotaGeneralNueva(e.target.value)}
                                             className="form-input-clean"
@@ -1217,12 +1213,9 @@ export default function VistaMesero() {
 
                         {vistaMesera === 'comanda_activa' && !pedidoMesaActiva && (
                             <div className="panel-card" style={{ textAlign: 'center', padding: 40 }}>
-                                <div className="panel-card-title">No hay comandas activas pendientes en salón</div>
-                                <p style={{ color: '#6b7280', fontSize: 13.5, marginBottom: 16 }}>
-                                    Todas las mesas han sido cobradas o están libres en este momento.
-                                </p>
+                                <div className="panel-card-title" style={{ marginBottom: 16 }}>Sin comandas activas</div>
                                 <button type="button" className="primary-dark-btn" onClick={() => cambiarVista('nueva_comanda')}>
-                                    + Crear nueva comanda
+                                    + Nueva comanda
                                 </button>
                             </div>
                         )}
@@ -1347,7 +1340,7 @@ export default function VistaMesero() {
                                         }}
                                     >
                                         <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
-                                            Agregar platillo adicional a esta comanda (valida stock e insumos en vivo):
+                                            Agregar platillo
                                         </div>
                                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                             <select
@@ -1628,8 +1621,8 @@ export default function VistaMesero() {
                         </div>
 
                         <p style={{ fontSize: 13.5, color: '#374151', lineHeight: 1.5, marginBottom: 14 }}>
-                            Esta acción cancelará la comanda <strong>#{pedidoMesaActiva.id_pedido}</strong> (${Number(pedidoMesaActiva.total).toFixed(2)}), reintegrará el stock e insumos si aún no se prepara, liberará la{' '}
-                            <strong>Mesa {String(pedidoMesaActiva.numero_mesa).padStart(2, '0')}</strong> y notificará al monitor de Cocina.
+                            Comanda <strong>#{pedidoMesaActiva.id_pedido}</strong> (${Number(pedidoMesaActiva.total).toFixed(2)}) ·{' '}
+                            <strong>Mesa {String(pedidoMesaActiva.numero_mesa).padStart(2, '0')}</strong>
                         </p>
 
                         <div className="form-field-group">
@@ -1754,7 +1747,7 @@ export default function VistaMesero() {
                                     }}
                                 >
                                     <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                                        Marca los platillos que pagará la Cuenta 1:
+                                        Platillos — Cuenta 1:
                                     </div>
                                     {(pedidoMesaActiva.detalles || [])
                                         .filter((d) => d.estado_item !== 'agotado_eliminado')

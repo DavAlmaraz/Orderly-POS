@@ -38,18 +38,6 @@ export default function Login() {
             }
         };
         window.addEventListener('pageshow', manejarPageshow);
-        const abrirAccesoQr = async () => {
-        setModalQrAbierto(true);
-        setCargandoQr(true);
-        try {
-            const res = await api.get('/sistema/red-qr');
-            setInfoQr(res.data);
-        } catch {
-            setInfoQr(null);
-        } finally {
-            setCargandoQr(false);
-        }
-    };
 
     return () => window.removeEventListener('pageshow', manejarPageshow);
     }, [location.key]);
@@ -174,7 +162,7 @@ export default function Login() {
                             fontWeight: 400,
                         }}
                     >
-                        Sistema de Gestión Restaurantera · Punto de Venta
+                        Punto de Venta
                     </p>
                 </div>
 
@@ -184,20 +172,11 @@ export default function Login() {
                             fontSize: '16px',
                             fontWeight: 700,
                             color: '#111827',
-                            marginBottom: '6px',
+                            marginBottom: '18px',
                         }}
                     >
                         Iniciar sesión
                     </h2>
-                    <p
-                        style={{
-                            fontSize: '13px',
-                            color: '#6b7280',
-                            marginBottom: '20px',
-                        }}
-                    >
-                        Ingrese sus credenciales de colaborador para acceder a su área asignada.
-                    </p>
 
                     {avisoSeguridad && (
                         <div
@@ -315,7 +294,7 @@ export default function Login() {
                         }}
                     >
                         <span style={{ fontSize: '12px', color: '#64748b' }}>
-                            Acceso en celular o tableta local
+                            Acceso móvil
                         </span>
                         <button
                             type="button"
@@ -323,7 +302,7 @@ export default function Login() {
                             style={{ padding: '6px 12px', fontSize: '12px' }}
                             onClick={abrirAccesoQr}
                         >
-                            Ver código QR móvil
+                            Código QR
                         </button>
                     </div>
                 </div>
@@ -338,7 +317,7 @@ export default function Login() {
                     >
                         <div className="panel-card-header" style={{ marginBottom: 12 }}>
                             <span className="panel-card-title" style={{ marginBottom: 0 }}>
-                                Acceso móvil en red local
+                                Acceso móvil
                             </span>
                             <button
                                 type="button"
@@ -351,11 +330,11 @@ export default function Login() {
                         </div>
                         <div style={{ padding: '6px 4px 10px' }}>
                             {cargandoQr ? (
-                                <p style={{ fontSize: '13px', color: '#64748b' }}>Generando código QR de red local...</p>
+                                <p style={{ fontSize: '13px', color: '#64748b' }}>Generando código QR...</p>
                             ) : infoQr?.qrSvg ? (
                                 <>
-                                    <p style={{ fontSize: '13px', color: '#475569', marginBottom: '14px' }}>
-                                        Escanee con la cámara del teléfono conectado al mismo Wi-Fi. Desde el navegador móvil seleccione Instalar aplicación para abrirla como aplicación nativa.
+                                    <p style={{ fontSize: '13px', color: '#475569', marginBottom: '12px' }}>
+                                        Escanee desde su dispositivo móvil
                                     </p>
                                     <div
                                         style={{
@@ -397,17 +376,6 @@ export default function Login() {
                     </div>
                 </div>
             )}
-
-            <div
-                style={{
-                    marginTop: '18px',
-                    fontSize: '12px',
-                    color: '#64748b',
-                    textAlign: 'center',
-                }}
-            >
-                Orderly POS · Sistema de Gestión Restaurantera
-            </div>
         </div>
     );
 }

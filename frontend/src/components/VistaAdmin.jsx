@@ -811,7 +811,6 @@ export default function VistaAdmin() {
                                     >
                                         <div className="kpi-label">
                                             <span>Ventas del día</span>
-                                            <span style={{ fontSize: 11, color: '#9ca3af' }}>Ver →</span>
                                         </div>
                                         <div className="kpi-value">
                                             ${estado.metricasDia.ventasHoy.toLocaleString('en-US')}
@@ -826,7 +825,6 @@ export default function VistaAdmin() {
                                     >
                                         <div className="kpi-label">
                                             <span>Mesas atendidas</span>
-                                            <span style={{ fontSize: 11, color: '#9ca3af' }}>Ver →</span>
                                         </div>
                                         <div className="kpi-value">{estado.metricasDia.mesasAtendidas}</div>
                                         <div className="kpi-trend">{estado.metricasDia.mesasVsAyer || '↑ 6 vs ayer'}</div>
@@ -839,7 +837,6 @@ export default function VistaAdmin() {
                                     >
                                         <div className="kpi-label">
                                             <span>Tiempo promedio</span>
-                                            <span style={{ fontSize: 11, color: '#9ca3af' }}>Ver →</span>
                                         </div>
                                         <div className="kpi-value">{estado.metricasDia.tiempoPromedioMin || 48} min</div>
                                         <div className="kpi-trend">{estado.metricasDia.tiempoVsAyer || '↓ 8 min mejor'}</div>
@@ -852,7 +849,6 @@ export default function VistaAdmin() {
                                     >
                                         <div className="kpi-label">
                                             <span>Alertas activas</span>
-                                            <span style={{ fontSize: 11, color: '#9ca3af' }}>Ver →</span>
                                         </div>
                                         <div className="kpi-value red">{estado.alertasActivasCount}</div>
                                         <div className="kpi-trend red">Insumos bajo mínimo</div>
@@ -989,11 +985,8 @@ export default function VistaAdmin() {
                                 <div className="panel-card" style={{ marginTop: 18 }}>
                                     <div className="panel-card-header">
                                         <div>
-                                            <div className="panel-card-title" style={{ marginBottom: 2 }}>
-                                                Desempeño del personal en turno
-                                            </div>
-                                            <div style={{ fontSize: 12.5, color: '#64748b' }}>
-                                                Evaluación operativa en tiempo real de productividad, mesas atendidas, tiempos de servicio y ventas por colaborador
+                                            <div className="panel-card-title" style={{ marginBottom: 0 }}>
+                                                Desempeño del personal
                                             </div>
                                         </div>
                                         <div className="category-tabs" style={{ margin: 0 }}>
@@ -1144,7 +1137,7 @@ export default function VistaAdmin() {
                             <div className="panel-card">
                                 <div className="panel-card-header">
                                     <span className="panel-card-title" style={{ marginBottom: 0 }}>
-                                        Estado actual de las 10 mesas — Toque cualquier mesa ocupada para inspeccionar su comanda
+                                        Mesas (10)
                                     </span>
                                 </div>
                                 <div className="tables-map-grid">
@@ -1436,10 +1429,7 @@ export default function VistaAdmin() {
                                             }}
                                         >
                                             <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>
-                                                Receta del platillo (Deducción automática de insumos)
-                                            </div>
-                                            <div style={{ fontSize: 11.5, color: '#64748b' }}>
-                                                Selecciona qué materia prima consume 1 porción de este platillo al venderse:
+                                                Receta (insumos por porción)
                                             </div>
 
                                             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: 6, alignItems: 'center' }}>
@@ -1476,8 +1466,8 @@ export default function VistaAdmin() {
                                             </div>
 
                                             {(nuevoPlatillo.receta || []).length === 0 ? (
-                                                <div style={{ fontSize: 11.5, color: '#94a3b8', fontStyle: 'italic' }}>
-                                                    Sin insumos vinculados todavía. Agrega al menos un insumo para conectar con el inventario.
+                                                <div style={{ fontSize: 11.5, color: '#94a3b8' }}>
+                                                    Sin insumos asignados
                                                 </div>
                                             ) : (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
@@ -2100,30 +2090,27 @@ export default function VistaAdmin() {
                                     <div className="panel-card" style={{ marginBottom: 16 }}>
                                         <div className="panel-card-header">
                                             <div>
-                                                <div className="panel-card-title" style={{ marginBottom: 2 }}>
-                                                    Conexión Local — MySQL Workbench 8.0 & MySQL Server 9.4.0
-                                                </div>
-                                                <div style={{ fontSize: 12.5, color: '#64748b' }}>
-                                                    Autenticación nativa <code>caching_sha2_password</code> · Esquema ACID <code>OrderlyDB</code>
+                                                <div className="panel-card-title" style={{ marginBottom: 0 }}>
+                                                    Conexión MySQL
                                                 </div>
                                             </div>
                                             <span className={`pill-badge ${estado.conexionMySQL?.conectado ? 'green' : 'amber'}`}>
                                                 {estado.conexionMySQL?.conectado
                                                     ? `MySQL ${estado.conexionMySQL?.versionServidor || '9.4.0'} Conectado`
-                                                    : 'Modo Resiliente ACID Activo'}
+                                                    : 'Modo Resiliente Activo'}
                                             </span>
                                         </div>
 
                                         <form onSubmit={guardarYConectarMySQL} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
                                                 <div>
-                                                    <label className="form-field-label">Host local (MySQL Workbench 8.0):</label>
+                                                    <label className="form-field-label">Host:</label>
                                                     <input
                                                         type="text"
                                                         value={formMySQL.host}
                                                         onChange={(e) => setFormMySQL({ ...formMySQL, host: e.target.value })}
                                                         className="form-input-clean"
-                                                        placeholder="localhost o 127.0.0.1"
+                                                        placeholder="localhost"
                                                         required
                                                     />
                                                 </div>
@@ -2142,7 +2129,7 @@ export default function VistaAdmin() {
 
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                                 <div>
-                                                    <label className="form-field-label">Usuario MySQL Server 9.4.0:</label>
+                                                    <label className="form-field-label">Usuario:</label>
                                                     <input
                                                         type="text"
                                                         value={formMySQL.user}
@@ -2166,55 +2153,49 @@ export default function VistaAdmin() {
                                             </div>
 
                                             <div>
-                                                <label className="form-field-label">Contraseña de tu instancia local MySQL:</label>
+                                                <label className="form-field-label">Contraseña:</label>
                                                 <input
                                                     type="password"
                                                     value={formMySQL.password}
                                                     onChange={(e) => setFormMySQL({ ...formMySQL, password: e.target.value })}
                                                     className="form-input-clean"
-                                                    placeholder="Ingresa la contraseña root de tu MySQL Workbench 8.0"
+                                                    placeholder="Contraseña"
                                                 />
                                             </div>
 
                                             <button type="submit" className="primary-dark-btn" disabled={probandoMySQL}>
                                                 {probandoMySQL
-                                                    ? 'Conectando y migrando tablas en MySQL 9.4.0...'
-                                                    : 'Probar conexión, guardar en .env y migrar OrderlyDB'}
+                                                    ? 'Conectando...'
+                                                    : 'Conectar y guardar configuración'}
                                             </button>
                                         </form>
                                     </div>
 
                                     <div className="panel-card">
-                                        <div className="panel-card-title">Respaldo firmado y recuperación de base de datos</div>
-                                        <p style={{ fontSize: 13.5, color: '#4b5563', marginBottom: 14 }}>
-                                            El sistema genera respaldos automáticos diarios firmados con HMAC-SHA256 y sin exponer contraseñas para resguardar las ventas, comandas e inventario del restaurante.
-                                        </p>
+                                        <div className="panel-card-title">Respaldos de base de datos</div>
                                         <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
                                             <div>
-                                                <strong>Motor activo:</strong> {estado.motorBaseDatos}
+                                                <strong>Motor:</strong> {estado.motorBaseDatos}
                                             </div>
                                             <div style={{ marginTop: 6 }}>
-                                                <strong>Último respaldo generado:</strong> {estado.ultimoRespaldo?.archivo} (
-                                                {estado.ultimoRespaldo?.fecha} a las {estado.ultimoRespaldo?.hora})
+                                                <strong>Último respaldo:</strong> {estado.ultimoRespaldo?.archivo} (
+                                                {estado.ultimoRespaldo?.fecha} {estado.ultimoRespaldo?.hora})
                                             </div>
                                             {estado.ultimoRespaldo?.firmaIntegridad && (
                                                 <div style={{ marginTop: 6, color: '#15803d', fontWeight: 600 }}>
-                                                    Firma de integridad: {estado.ultimoRespaldo.firmaIntegridad}
+                                                    Firma: {estado.ultimoRespaldo.firmaIntegridad}
                                                 </div>
                                             )}
                                         </div>
                                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                                             <button type="button" className="primary-dark-btn" onClick={dispararRespaldoManual}>
-                                                Generar respaldo firmado ahora
+                                                Generar respaldo
                                             </button>
                                         </div>
                                     </div>
 
                                     <div className="panel-card">
-                                        <div className="panel-card-title">Acceso móvil nativo y código QR en red local</div>
-                                        <p style={{ fontSize: 13.5, color: '#4b5563', marginBottom: 14 }}>
-                                            Escanee este código desde tabletas de salón o teléfonos conectados al mismo Wi-Fi. En el navegador móvil toque Instalar aplicación para operar en pantalla completa.
-                                        </p>
+                                        <div className="panel-card-title">Acceso móvil (Código QR)</div>
                                         {qrRed?.qrSvg ? (
                                             <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
                                                 <div
@@ -2293,7 +2274,7 @@ export default function VistaAdmin() {
 
                         {!pedidoMesaInspeccionada ? (
                             <p style={{ fontSize: 13.5, color: '#6b7280', marginBottom: 16 }}>
-                                Esta mesa se encuentra libre y disponible para asignar comensales desde el módulo de salón.
+                                Mesa libre.
                             </p>
                         ) : (
                             <div>
@@ -2535,7 +2516,7 @@ export default function VistaAdmin() {
 
                         <form onSubmit={guardarTurnoActivo} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div>
-                                <label className="form-field-label">Modalidad del turno (ej. Turno completo o Medio turno):</label>
+                                <label className="form-field-label">Modalidad del turno:</label>
                                 <select
                                     value={formTurnoActivo.modalidad}
                                     onChange={(e) => {
@@ -2612,12 +2593,12 @@ export default function VistaAdmin() {
                             </div>
 
                             <div>
-                                <label className="form-field-label">Notas operativas del turno:</label>
+                                <label className="form-field-label">Observaciones:</label>
                                 <input
                                     type="text"
                                     value={formTurnoActivo.notas}
                                     onChange={(e) => setFormTurnoActivo({ ...formTurnoActivo, notas: e.target.value })}
-                                    placeholder="Ej. Ajuste a medio turno por evento especial"
+                                    placeholder="Observaciones"
                                     className="form-input-clean"
                                 />
                             </div>
