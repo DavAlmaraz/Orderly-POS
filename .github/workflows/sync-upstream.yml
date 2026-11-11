@@ -1,0 +1,31 @@
+name: Sync Upstream Fork
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync from DavAlmaraz/Orderly-POS
+        run: |
+          git remote add upstream https://github.com/DavAlmaraz/Orderly-POS.git
+          git fetch upstream main
+          git merge --no-edit upstream/main
+          git push origin main
