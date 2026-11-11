@@ -17,7 +17,7 @@ export default function VistaCocina() {
 
     const [estado, setEstado] = useState(null);
     const [vistaCocina, setVistaCocina] = useState('pendientes');
-    const [menuAbierto, setMenuAbierto] = useState(() => window.innerWidth > 860);
+    const [menuAbierto, setMenuAbierto] = useState(false);
     const [filtroComandas, setFiltroComandas] = useState('todas');
     const [platillosMarcadosAvance, setPlatillosMarcadosAvance] = useState({});
     const [toast, setToast] = useState(null);
@@ -41,9 +41,7 @@ export default function VistaCocina() {
 
     function cambiarVista(nuevaVista) {
         setVistaCocina(nuevaVista);
-        if (window.innerWidth <= 860) {
-            setMenuAbierto(false);
-        }
+        setMenuAbierto(false);
     }
 
     function mostrarToast(mensaje, tipo = 'ok') {

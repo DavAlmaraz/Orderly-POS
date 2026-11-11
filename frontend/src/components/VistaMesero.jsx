@@ -35,7 +35,7 @@ export default function VistaMesero() {
 
     const [estado, setEstado] = useState(null);
     const [vistaMesera, setVistaMesera] = useState('mapa_mesas');
-    const [menuAbierto, setMenuAbierto] = useState(() => window.innerWidth > 860);
+    const [menuAbierto, setMenuAbierto] = useState(false);
     const [filtroMapaMesas, setFiltroMapaMesas] = useState('todas');
     const [toast, setToast] = useState(null);
     const [notificacionesEmergentes, setNotificacionesEmergentes] = useState([]);
@@ -92,9 +92,7 @@ export default function VistaMesero() {
 
     function cambiarVista(nuevaVista) {
         setVistaMesera(nuevaVista);
-        if (window.innerWidth <= 860) {
-            setMenuAbierto(false);
-        }
+        setMenuAbierto(false);
     }
 
     function mostrarToast(mensaje, tipo = 'ok') {

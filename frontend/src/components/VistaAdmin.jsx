@@ -52,7 +52,7 @@ export default function VistaAdmin() {
 
     const [estado, setEstado] = useState(null);
     const [vistaAdmin, setVistaAdmin] = useState('dashboard');
-    const [menuAbierto, setMenuAbierto] = useState(() => window.innerWidth > 860);
+    const [menuAbierto, setMenuAbierto] = useState(false);
     const [toast, setToast] = useState(null);
 
     // Filtros interactivos para reducir ruido visual
@@ -127,9 +127,7 @@ export default function VistaAdmin() {
 
     function cambiarVista(nuevaVista) {
         setVistaAdmin(nuevaVista);
-        if (window.innerWidth <= 860) {
-            setMenuAbierto(false);
-        }
+        setMenuAbierto(false);
     }
 
     function mostrarToast(mensaje, tipo = 'ok') {
