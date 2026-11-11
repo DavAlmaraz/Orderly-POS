@@ -15,11 +15,11 @@ export default function VistaCocina() {
 
     const [estado, setEstado] = useState(null);
     const [vistaCocina, setVistaCocina] = useState('pendientes');
-    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
+    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 900 : true));
 
     useEffect(() => {
         const onResize = () => {
-            if (window.innerWidth <= 768) setMenuAbierto(false);
+            if (window.innerWidth <= 900) setMenuAbierto(false);
         };
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
@@ -31,7 +31,7 @@ export default function VistaCocina() {
 
     function cambiarVista(nuevaVista) {
         setVistaCocina(nuevaVista);
-        if (window.innerWidth <= 768) {
+        if (window.innerWidth <= 900) {
             setMenuAbierto(false);
         }
     }

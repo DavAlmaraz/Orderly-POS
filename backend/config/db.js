@@ -71,7 +71,7 @@ const estado = {
             Descripcion: 'Orden de 3 enchiladas con pollo bañadas en salsa de tomatillo y chile verde con crema', descripcion: 'Orden de 3 enchiladas con pollo bañadas en salsa de tomatillo y chile verde con crema',
             Categoria: 'Plato fuerte', categoria: 'Plato fuerte',
             Precio: 95.00, precio: 95.00,
-            Stock: 18, stock: 18, unidad_stock: 'porciones',
+            Stock: 14, stock: 14, unidad_stock: 'porciones',
             Disponible: true, disponible: true, tiempo_prep_min: 12,
             receta: [
                 { id_insumo: 1, cantidad_requerida: 0.15 },
@@ -86,7 +86,7 @@ const estado = {
             Descripcion: 'Plato servido con arroz, verduras frescas y tortillas', descripcion: 'Plato servido con arroz, verduras frescas y tortillas',
             Categoria: 'Plato fuerte', categoria: 'Plato fuerte',
             Precio: 120.00, precio: 120.00,
-            Stock: 12, stock: 12, unidad_stock: 'porciones',
+            Stock: 8, stock: 8, unidad_stock: 'porciones',
             Disponible: true, disponible: true, tiempo_prep_min: 15,
             receta: [{ id_insumo: 2, cantidad_requerida: 0.25 }]
         },
@@ -109,7 +109,7 @@ const estado = {
             Descripcion: 'Filete de pechuga de pollo a la plancha con guarnición fresca', descripcion: 'Filete de pechuga de pollo a la plancha con guarnición fresca',
             Categoria: 'Plato fuerte', categoria: 'Plato fuerte',
             Precio: 95.00, precio: 95.00,
-            Stock: 7, stock: 7, unidad_stock: 'porciones',
+            Stock: 5, stock: 5, unidad_stock: 'porciones',
             Disponible: true, disponible: true, tiempo_prep_min: 12,
             receta: [
                 { id_insumo: 3, cantidad_requerida: 0.20 },
@@ -122,7 +122,7 @@ const estado = {
             Descripcion: 'Sopa tradicional ligera con tiras de tortilla crujiente y pollo', descripcion: 'Sopa tradicional ligera con tiras de tortilla crujiente y pollo',
             Categoria: 'Entradas', categoria: 'Entradas',
             Precio: 70.00, precio: 70.00,
-            Stock: 9, stock: 9, unidad_stock: 'porciones',
+            Stock: 7, stock: 7, unidad_stock: 'porciones',
             Disponible: true, disponible: true, tiempo_prep_min: 8,
             receta: [
                 { id_insumo: 1, cantidad_requerida: 0.08 },
@@ -155,7 +155,7 @@ const estado = {
             descripcion: 'Postre casero de flan horneado con caramelo', Descripcion: 'Postre casero de flan horneado con caramelo',
             Categoria: 'Postres', categoria: 'Postres',
             Precio: 55.00, precio: 55.00,
-            Stock: 6, stock: 6, unidad_stock: 'porciones',
+            Stock: 4, stock: 4, unidad_stock: 'porciones',
             Disponible: true, disponible: true, tiempo_prep_min: 5,
             receta: [{ id_insumo: 9, cantidad_requerida: 0.04 }]
         }

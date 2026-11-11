@@ -1454,6 +1454,12 @@ app.patch('/api/pedidos/:id', verificarToken, verificarRol(['mesera', 'administr
                 estado_item: 'activo'
             });
         }
+        if (String(pedido.estado || pedido.Estado || '').toLowerCase() === 'preparado') {
+            pedido.estado = 'pendiente';
+            pedido.Estado = 'pendiente';
+            const mesaAct = estado.mesas.find((m) => m.numero === Number(pedido.numero_mesa || pedido.mesa));
+            if (mesaAct) mesaAct.estado = 'ocupada';
+        }
     }
     // Caso B: Eliminar un platillo de la comanda activa -> regresar su cantidad al inventario y recetas
     else if (id_detalle && eliminar_detalle) {
@@ -1583,11 +1589,16 @@ async function actualizarEstadoPedido(req, res) {
             const mesaObj = estado.mesas.find((m) => m.numero === Number(pedido.numero_mesa));
             if (mesaObj && nuevoEstado === 'preparado') {
                 mesaObj.estado = 'por_cobrar';
+                mesaObj.pagado = Boolean(pedido.pagado);
             }
             agregarNotificacion(
                 'mesera',
-                `Comanda lista en barra — Mesa ${String(pedido.numero_mesa).padStart(2, '0')}`,
-                `Los platillos de la Mesa ${String(pedido.numero_mesa).padStart(2, '0')} están listos para servir.`,
+                pedido.pagado
+                    ? `Comanda lista (ya pagada) — Mesa ${String(pedido.numero_mesa).padStart(2, '0')}`
+                    : `Comanda lista en barra — Mesa ${String(pedido.numero_mesa).padStart(2, '0')}`,
+                pedido.pagado
+                    ? `Los platillos de la Mesa ${String(pedido.numero_mesa).padStart(2, '0')} están listos para servir (cuenta pagada por adelantado).`
+                    : `Los platillos de la Mesa ${String(pedido.numero_mesa).padStart(2, '0')} están listos para servir.`,
                 'ok',
                 { numero_mesa: pedido.numero_mesa, id_pedido: pedido.id_pedido }
             );
@@ -1662,7 +1673,7 @@ app.patch('/api/inventario/:id', verificarToken, verificarRol(['administrador', 
 });
 
 app.post('/api/pagos', verificarToken, verificarRol(['mesera', 'administrador']), (req, res) => {
-    const { numero_mesa, id_pedido, pagos_divididos = [], mesera } = req.body;
+    const { numero_mesa, id_pedido, pagos_divididos = [], mesera, pago_anticipado = false } = req.body;
     const nombreMesera = mesera || req.usuario.nombre || 'Maria';
 
     if (!numero_mesa || !Array.isArray(pagos_divididos) || pagos_divididos.length === 0) {
@@ -1674,6 +1685,27 @@ app.post('/api/pagos', verificarToken, verificarRol(['mesera', 'administrador'])
 
     if (!pedido) {
         return res.status(404).json({ error: 'No se encontró una comanda activa válida para cobrar en esta mesa.' });
+    }
+
+    if (pedido.pagado) {
+        return res.status(409).json({
+            error: `La comanda #${pedido.id_pedido || pedido.Id_pedido} de la Mesa ${String(numero_mesa).padStart(2, '0')} ya fue cobrada por adelantado.`
+        });
+    }
+
+    const estadoPed = String(pedido.estado || pedido.Estado || '').toLowerCase();
+    const esPagoAnticipado = estadoPed !== 'preparado';
+    if (esPagoAnticipado && pago_anticipado !== true) {
+        return res.status(409).json({
+            error: `La comanda #${pedido.id_pedido || pedido.Id_pedido} (Mesa ${String(numero_mesa).padStart(2, '0')}) aún no está marcada como lista en cocina. Espera a que cocina la termine o autoriza explícitamente el pago anticipado.`
+        });
+    }
+
+    const detallesActivos = (pedido.detalles || []).filter(
+        (d) => d.estado_item !== 'agotado_eliminado' && !d.sin_stock_evadido
+    );
+    if (detallesActivos.length === 0) {
+        return res.status(400).json({ error: 'No hay platillos activos con stock válido en la comanda para cobrar.' });
     }
 
     // Recalcular total legítimo ignorando estrictamente platillos sin stock o eliminados
@@ -1711,56 +1743,127 @@ app.post('/api/pagos', verificarToken, verificarRol(['mesera', 'administrador'])
     const montoSumarGanancias = Math.min(sumaPagos, totalLegitimoCuenta);
 
     const horaActual = new Date().toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
-    const resumenPlatillos = pedido
-        ? (pedido.detalles || [])
-            .filter((d) => d.estado_item !== 'agotado_eliminado' && !d.sin_stock_evadido)
-            .map((d) => `${(d.nombre || d.Nombre).split(' ')[0]} ×${d.cantidad}`)
-            .join(', ')
-        : 'Consumo en mesa';
+    const resumenPlatillos = detallesActivos
+        .map((d) => `${(d.nombre || d.Nombre).split(' ')[0]} ×${d.cantidad}`)
+        .join(', ') || 'Consumo en mesa';
 
     const pagosRegistrados = pagos_divididos.map((pItem, idx) => {
+        const conceptoBase = pItem.concepto || 'Cuenta completa';
+        const conceptoFinal = esPagoAnticipado && !/anticipado/i.test(conceptoBase)
+            ? `${conceptoBase} · Anticipado`
+            : conceptoBase;
         const nuevoPago = {
             id_pago: estado.pagos.length + idx + 1,
-            id_pedido: pedido ? (pedido.id_pedido || pedido.Id_pedido) : 0,
+            id_pedido: pedido.id_pedido || pedido.Id_pedido || 0,
             numero_mesa: `Mesa ${String(numero_mesa).padStart(2, '0')}`,
             resumen_platillos: resumenPlatillos,
             mesera: nombreMesera,
             metodo: pItem.metodo || 'Efectivo',
             monto: Number(Number(pItem.monto).toFixed(2)),
-            concepto_division: pItem.concepto || 'Cuenta completa',
+            concepto_division: conceptoFinal,
+            anticipado: esPagoAnticipado,
             hora: horaActual,
         };
         estado.pagos.unshift(nuevoPago);
         return nuevoPago;
     });
 
-    estado.pedidos.forEach((p) => {
-        if (Number(p.numero_mesa || p.mesa) === Number(numero_mesa) && !['cerrado', 'cancelado'].includes(p.estado || p.Estado)) {
-            p.estado = 'cerrado';
-            p.Estado = 'cerrado';
-        }
-    });
-
     const mesaObj = estado.mesas.find((m) => m.numero === Number(numero_mesa));
-    if (mesaObj) {
-        mesaObj.estado = 'libre';
-        mesaObj.personas = 0;
-        mesaObj.minutos = 0;
-        mesaObj.total = 0;
+
+    if (esPagoAnticipado) {
+        // Mantener la comanda visible en cocina hasta que sea marcada lista, pero marcar cuenta ya pagada
+        pedido.pagado = true;
+        pedido.pagado_anticipado = true;
+        if (mesaObj) {
+            mesaObj.pagado = true;
+        }
+    } else {
+        estado.pedidos.forEach((p) => {
+            if (Number(p.numero_mesa || p.mesa) === Number(numero_mesa) && !['cerrado', 'cancelado'].includes(p.estado || p.Estado)) {
+                p.estado = 'cerrado';
+                p.Estado = 'cerrado';
+                p.pagado = true;
+            }
+        });
+
+        if (mesaObj) {
+            mesaObj.estado = 'libre';
+            mesaObj.pagado = false;
+            mesaObj.personas = 0;
+            mesaObj.minutos = 0;
+            mesaObj.total = 0;
+        }
     }
 
     estado.metricasDia.ventasHoy = Number((estado.metricasDia.ventasHoy + montoSumarGanancias).toFixed(2));
     estado.metricasDia.mesasAtendidas += 1;
     estado.metricasDia.ticketPromedio = Math.round(estado.metricasDia.ventasHoy / Math.max(1, estado.metricasDia.mesasAtendidas));
 
-    registrarLog(nombreMesera, 'COBRO_CUENTA', `Mesa ${String(numero_mesa).padStart(2, '0')} cobrada por $${montoSumarGanancias.toFixed(2)}`);
-    emitirActualizacionTiempoReal('pago:registrado', { pagos: pagosRegistrados, numero_mesa: Number(numero_mesa) });
+    registrarLog(
+        nombreMesera,
+        esPagoAnticipado ? 'COBRO_ANTICIPADO' : 'COBRO_CUENTA',
+        `Mesa ${String(numero_mesa).padStart(2, '0')} cobrada${esPagoAnticipado ? ' por adelantado (comanda aún en cocina)' : ''} por $${montoSumarGanancias.toFixed(2)}`
+    );
+    emitirActualizacionTiempoReal('pago:registrado', { pagos: pagosRegistrados, numero_mesa: Number(numero_mesa), anticipado: esPagoAnticipado });
 
     return res.status(201).json({
-        mensaje: 'Pago procesado correctamente y mesa liberada',
+        mensaje: esPagoAnticipado
+            ? 'Pago anticipado registrado. La comanda permanece en cocina hasta que esté lista.'
+            : 'Pago procesado correctamente y mesa liberada',
+        anticipado: esPagoAnticipado,
         totalCobrado: Number(montoSumarGanancias.toFixed(2)),
         pagos: pagosRegistrados,
     });
+});
+
+app.post('/api/mesas/:numero/liberar-pagada', verificarToken, verificarRol(['mesera', 'administrador']), (req, res) => {
+    const numMesa = Number(req.params.numero);
+    const pedido = estado.pedidos.find(
+        (p) => Number(p.numero_mesa || p.mesa) === numMesa && !['cerrado', 'cancelado'].includes(p.estado || p.Estado)
+    );
+    if (!pedido || !pedido.pagado) {
+        return res.status(409).json({ error: `La Mesa ${String(numMesa).padStart(2, '0')} no tiene un pago anticipado confirmado para liberar.` });
+    }
+    estado.pedidos.forEach((p) => {
+        if (Number(p.numero_mesa || p.mesa) === numMesa && !['cerrado', 'cancelado'].includes(p.estado || p.Estado)) {
+            p.estado = 'cerrado';
+            p.Estado = 'cerrado';
+        }
+    });
+    const mesaObj = estado.mesas.find((m) => m.numero === numMesa);
+    if (mesaObj) {
+        mesaObj.estado = 'libre';
+        mesaObj.pagado = false;
+        mesaObj.personas = 0;
+        mesaObj.minutos = 0;
+        mesaObj.total = 0;
+    }
+    registrarLog(req.usuario.nombre || 'Mesera', 'LIBERAR_MESA_PAGADA', `Mesa ${String(numMesa).padStart(2, '0')} entregada y liberada tras pago anticipado.`);
+    emitirActualizacionTiempoReal('mesa:liberada', { numero_mesa: numMesa });
+    return res.json({ mensaje: `Mesa ${String(numMesa).padStart(2, '0')} liberada correctamente.`, numero_mesa: numMesa });
+});
+
+app.patch('/api/pagos/:id', verificarToken, verificarRol(['administrador', 'mesera']), (req, res) => {
+    const idPago = Number(req.params.id);
+    const pago = estado.pagos.find((p) => Number(p.id_pago) === idPago);
+    if (!pago) {
+        return res.status(404).json({ error: 'Registro de pago no encontrado.' });
+    }
+    const { metodo, concepto_division } = req.body;
+    if (metodo && String(metodo).trim()) {
+        const metodoAnterior = pago.metodo;
+        pago.metodo = String(metodo).trim();
+        registrarLog(
+            req.usuario.nombre || 'Admin',
+            'MODIFICAR_PAGO',
+            `Pago #${idPago} (${pago.numero_mesa}) cambió método de "${metodoAnterior}" a "${pago.metodo}".`
+        );
+    }
+    if (typeof concepto_division === 'string' && concepto_division.trim()) {
+        pago.concepto_division = concepto_division.trim();
+    }
+    emitirActualizacionTiempoReal('pago:actualizado', { pago });
+    return res.json({ mensaje: `Pago #${idPago} actualizado (${pago.metodo}).`, pago });
 });
 
 app.post('/api/mesas/transferir', verificarToken, verificarRol(['mesera', 'administrador']), (req, res) => {
@@ -2097,6 +2200,7 @@ if (fs.existsSync(FRONTEND_DIST_DIR)) {
 }
 
 server.listen(PORT, '0.0.0.0', () => {
+    sincronizarPlatillosSinInsumos('Sistema');
     const ips = obtenerIpsRedLocal();
     const urlLan = ips[0] ? `http://${ips[0].ip}:${PORT}` : `http://localhost:${PORT}`;
     console.log(`Servidor Orderly POS activo en http://localhost:${PORT} (Red local: ${urlLan})`);

@@ -26,9 +26,10 @@ Sistema de Punto de Venta (POS) y Gestión Restaurantera para **Salón (Meseros)
    - Iniciará el servidor unificado en el puerto `3000`, mostrará la dirección de red local y abrirá **`http://localhost:3000/login`** en el navegador.
 5. Para apagar el sistema al finalizar la jornada, haga doble clic en **`Detener_Orderly_POS.bat`**.
 
-### 1.3 Uso desde otra computadora o teléfono en el restaurante (Aplicación Móvil Nativa)
-No es necesario instalar Node.js ni copiar el código en las demás computadoras, tabletas o teléfonos:
-1. En la pantalla de **Inicio de sesión** de Orderly (en la computadora principal o desde el panel **Administrador -> Configuración / Respaldos**), haga clic en **"Ver código QR móvil"**.
+### 1.3 Uso desde otra computadora o teléfono en el restaurante (Aplicación Móvil Nativa y Diseño Responsivo)
+No es necesario instalar Node.js ni copiar el código en las demás computadoras, tabletas o teléfonos. Toda la interfaz cuenta con **diseño responsivo automático**: en pantallas de `900 px` o menores (teléfonos y tabletas verticales), la barra lateral se oculta automáticamente como menú deslizable activado desde el botón de menú (`≡`) superior, y los formularios, tarjetas y controles de cantidad/botones se reorganizan en columnas para evitar recortes o superposiciones.
+
+1. En la pantalla de **Inicio de sesión** de Orderly (en la computadora principal o desde el panel interno **Configuración / Respaldos**), haga clic en **"Ver código QR móvil"**.
 2. Conecte su teléfono o tableta a la **misma red Wi-Fi** que la computadora principal.
 3. Escanee el **código QR** con la cámara del dispositivo móvil (o escriba en el navegador la dirección `http://<IP_LOCAL>:3000/login` indicada debajo del QR).
 4. **Instalar como aplicación nativa (PWA)**:
@@ -120,37 +121,40 @@ Por políticas estrictas de seguridad del punto de venta:
 ## 3. Manual de Operación por Rol
 
 ### 3.1 Módulo de Meseros / Salón
-Diseñado en color azul pizarra (`#2B3A4A`) para tablets y teléfonos móviles:
+Diseñado en color azul pizarra (`#2B3A4A`) para computadoras, tablets y teléfonos móviles:
 - **Mapa de mesas**: Muestra en tiempo real las 10 mesas con su estado (**Libre**, **Ocupada** o **Por cobrar**) y el total acumulado.
-- **Nueva comanda**:
+- **Nueva comanda y sugerencias dinámicas**:
   1. Seleccione una mesa libre e indique el número de comensales (límite máximo permitido: **12 personas por mesa**).
-  2. Elija platillos por categoría; el sistema muestra el stock disponible en tiempo real y bloquea cualquier platillo agotado.
-  3. Puede agregar notas de cocina por platillo (ej. *sin cebolla*, *término medio*).
-  4. Presione **Enviar a cocina**; el stock de platillos y sus insumos vinculados se descuentan automáticamente y la comanda aparece al instante en la pantalla de Cocina.
+  2. Utilice la barra de **Sugerencias** en tiempo real (calculadas por el módulo de predicción de demanda según inventario, rotación y margen) para agregar platillos recomendados con un clic.
+  3. Elija platillos por categoría; el sistema muestra el stock **libre real** en tiempo real (descontando desde el inicio lo ya comprometido en comandas activas de otras mesas pendientes en cocina) y bloquea cualquier platillo agotado o sin insumos suficientes.
+  4. Puede agregar notas de cocina por platillo (ej. *sin cebolla*, *término medio*).
+  5. Presione **Enviar comanda a cocina**; el stock de platillos y sus insumos vinculados se descuentan automáticamente y la comanda aparece al instante en la pantalla de Cocina.
 - **Editar comanda activa**:
-  - Agregue nuevos platillos (validando stock disponible en el momento), modifique cantidades o elimine artículos (regresando automáticamente el stock al inventario).
+  - Agregue nuevos platillos (validando stock disponible en el momento; si la comanda ya estaba marcada como lista en cocina, vuelve a estado pendiente para preparar lo recién agregado), modifique cantidades o elimine artículos con el botón **Quitar** (regresando automáticamente el stock al inventario).
   - Transfiera la comanda a otra mesa disponible o cancele la orden indicando motivo si el cliente lo solicita.
-- **Cobro y división de cuentas**:
-  - **Pago completo**: Seleccione método de pago (**Efectivo**, **Tarjeta débito/crédito** o **Transferencia**) y cierre la mesa.
+- **Cobro, pago anticipado y división de cuentas**:
+  - **Validación por estado en cocina**: Si la comanda sigue pendiente en cocina (aún no marcada como lista), el sistema advierte y bloquea el cobro estándar para evitar liquidar pedidos sin confirmar.
+  - **Pago anticipado (clientes que pagan antes)**: Cuando un cliente solicita pagar por adelantado antes de que cocina termine su pedido, el botón **Cobrar anticipado** abre el modal donde debe marcarse explícitamente **"Confirmar pago anticipado del cliente"**. El pago se registra de inmediato y la comanda **permanece visible en Cocina** hasta estar lista; al entregarla, presione **Entregar y liberar mesa** (sin riesgo de doble cobro).
+  - **Pago completo**: Seleccione método de pago (**Efectivo**, **Tarjeta de crédito/débito**, **Transferencia** o **Monedero electrónico**) y cierre la mesa.
   - **Separar por platillo**: Asigne artículos individuales a cada comensal y cobre cada subcuenta.
   - **Separar por monto**: Divida en pagos parciales; el sistema valida que la suma no supere el total de la cuenta.
   - **Separar por porcentaje**: Divida dinámicamente entre el total de comensales registrados en la mesa, validando que la suma no exceda el `100%`.
 
 ### 3.2 Módulo de Cocina (KDS)
 Diseñado en color verde operativo (`#1F5C35` / `#4D7A5D`):
-- **Comandas pendientes**: Lista cronológica en tiempo real con el tiempo de espera, mesera responsable, platillos y notas especiales de preparación.
+- **Comandas pendientes**: Lista cronológica en tiempo real con el tiempo de espera, mesera responsable, platillos y notas especiales de preparación (incluyendo órdenes pagadas anticipadamente hasta ser marcadas como listas).
 - **Control por platillo**: Marque platillos individuales conforme avanzan en cocina y presione **Marcar comanda lista** al terminar para notificar al mesero mediante alerta emergente y notificación Push.
 - **Tiempo extendido o platillo agotado**: Informe retrasos de `+10 min` o notifique cuando un producto se agote para actualizar automáticamente las pantallas de salón.
-- **Platillos disponibles e inventario de cocina**: Habilite o deshabilite platillos del menú con un interruptor y consulte existencias de insumos en niveles **Óptimo**, **Bajo** o **Crítico**. Si algún insumo requerido por la receta de un platillo es insuficiente, el sistema deshabilita el platillo automáticamente y bloquea su reactivación hasta reabastecer el ingrediente.
+- **Platillos disponibles e inventario de cocina**: Habilite o deshabilite platillos del menú con un interruptor y consulte existencias de insumos en niveles **Óptimo**, **Bajo** o **Crítico**. Si algún insumo requerido por la receta de un platillo es insuficiente o crítico, el sistema deshabilita el platillo automáticamente y bloquea su reactivación hasta reabastecer el ingrediente.
 
 ### 3.3 Módulo de Administración
 Diseñado en color naranja oscuro (`#6B3A07`):
-- **Dashboard — Resumen del día**: Monitoreo en tiempo real de ventas del día, mesas atendidas, tiempo promedio de servicio, alertas activas de inventario, gráfica de ventas por hora, platillos más vendidos, últimas transacciones y **desempeño del personal** por turno.
-- **Gestión del turno activo**: Haga clic en la etiqueta **Editar** del turno activo en la barra superior para cambiar la modalidad (*Turno completo*, *Medio turno matutino/vespertino*), horario de inicio/fin y responsables asignados.
-- **Catálogo de platillos y recetas**: Cree nuevos platillos vinculando exactamente qué **insumos de inventario** y en qué cantidad se requieren por porción; al vender o cancelar un platillo el inventario de materia prima se actualiza de forma automática y no es posible activar ni crear un platillo con `Stock` activo si falta algún insumo de su receta.
-- **Inventario y alertas en tiempo real**: Registre reabastecimientos o mermas; el sistema muestra alertas visuales y sonoras en tiempo real cuando un insumo entra en nivel bajo o crítico y permite consultar el directorio de proveedores.
-- **Reportes de ventas y Cierre de caja**: En **Reportes de ventas** filtre transacciones por método de pago o mesero y exporte a CSV; en **Cierre de caja** revise el resumen esperado y capture el conteo físico de efectivo para el arqueo final del turno.
-- **Usuarios, contraseñas y respaldos**: Gestione cuentas activas, restablezca contraseñas, configure la conexión MySQL Server 9.4.0 / Workbench 8.0, genere respaldos firmados con HMAC-SHA256 y obtenga el código QR de acceso móvil.
+- **Dashboard — Resumen del día y Predicción de demanda**: Monitoreo en tiempo real de ventas del día, mesas atendidas, tiempo promedio de servicio, alertas activas de inventario, gráfica de ventas por hora, platillos más vendidos, módulo de **Predicción de demanda y cobertura de inventario** (estimación de cierre, déficit proyectado y estado *Óptima* / *Ajustada* / *Reabastecer* / *Agotado*), últimas transacciones y **desempeño del personal** por turno.
+- **Gestión del turno activo**: Haga clic en el botón **Editar** del turno activo en la barra superior para cambiar la modalidad (*Turno completo*, *Medio turno matutino/vespertino*), horario de inicio/fin y responsables asignados.
+- **Catálogo de platillos y recetas**: Cree o edite platillos vinculando exactamente qué **insumos de inventario** y en qué cantidad se requieren por porción; al vender o cancelar un platillo el inventario de materia prima se actualiza de forma automática y no es posible activar ni crear un platillo con `Stock` activo si algún insumo de su receta es insuficiente o crítico.
+- **Inventario y alertas en tiempo real**: Registre reabastecimientos o mermas; el sistema muestra alertas visuales y sonoras en tiempo real cuando un insumo entra en nivel bajo o crítico y permite abrir el directorio de **Proveedores** con marcación telefónica directa (`tel:`) en dispositivos móviles.
+- **Reportes de ventas, modificación de pagos y Cierre de caja**: En **Reportes de ventas** filtre transacciones por método de pago o mesero, **modifique el método de pago** directamente en una transacción registrada cuando necesite corregir un cobro (quedando auditado en bitácora) y exporte a CSV; en **Cierre de caja** revise el resumen esperado y capture el conteo físico de efectivo para el arqueo final del turno.
+- **Usuarios, contraseñas y panel técnico reservado**: Gestione cuentas activas y restablezca contraseñas desde **Usuarios y turnos**. Para mantener limpia la vista operativa, la sección técnica **Configuración / Respaldos** (conexión MySQL Server 9.4.0 / Workbench 8.0, respaldos firmados HMAC-SHA256 y QR de red local) permanece oculta en la barra lateral y se abre únicamente haciendo **doble clic** en la tarjeta de usuario en la parte inferior del menú lateral (o mediante `?sistema=1`).
 
 ---
 

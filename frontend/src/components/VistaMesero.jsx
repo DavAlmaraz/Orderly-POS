@@ -33,11 +33,11 @@ export default function VistaMesero() {
 
     const [estado, setEstado] = useState(null);
     const [vistaMesera, setVistaMesera] = useState('mapa_mesas');
-    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
+    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 900 : true));
 
     useEffect(() => {
         const onResize = () => {
-            if (window.innerWidth <= 768) setMenuAbierto(false);
+            if (window.innerWidth <= 900) setMenuAbierto(false);
         };
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
@@ -79,10 +79,12 @@ export default function VistaMesero() {
     const [montosComensales, setMontosComensales] = useState([150, 150]);
     const [metodosComensales, setMetodosComensales] = useState(['Efectivo', 'Tarjeta de crédito']);
     const [platillosSeleccionadosPago1, setPlatillosSeleccionadosPago1] = useState({});
+    const [confirmarPagoAnticipado, setConfirmarPagoAnticipado] = useState(false);
+    const [actualizandoPedido, setActualizandoPedido] = useState(false);
 
     function cambiarVista(nuevaVista) {
         setVistaMesera(nuevaVista);
-        if (window.innerWidth <= 768) {
+        if (window.innerWidth <= 900) {
             setMenuAbierto(false);
         }
     }
@@ -391,6 +393,7 @@ export default function VistaMesero() {
     }
 
     async function modificarCantidadDetalleActivo(idPedido, det, delta) {
+        if (actualizandoPedido) return;
         if (delta > 0) {
             const platCatalogo = estado?.platillos?.find(
                 (p) => (p.id_platillo || p.Id_platillo) === Number(det.id_platillo || det.Id_platillo)
@@ -404,14 +407,17 @@ export default function VistaMesero() {
                 return;
             }
         }
+        setActualizandoPedido(true);
         try {
             await api.patch(`/pedidos/${idPedido}`, {
                 id_detalle: det.id_detalle,
                 delta_cantidad: delta,
             });
-            cargarEstado();
+            await cargarEstado();
         } catch (err) {
             mostrarToast(err.response?.data?.error || 'No se pudo actualizar la cantidad.', 'critico');
+        } finally {
+            setActualizandoPedido(false);
         }
     }
 
@@ -421,11 +427,11 @@ export default function VistaMesero() {
             return;
         }
         const idPlat = Number(platilloExtraSeleccionado);
-        const cant = Number(cantidadExtraSeleccionada || 1);
+        const cant = Number(cantidadExtraSeleccionada || 0);
         const platCatalogo = estado?.platillos?.find((p) => (p.id_platillo || p.Id_platillo) === idPlat);
         const stockDisp = Number(platCatalogo?.stock ?? platCatalogo?.Stock ?? 0);
 
-        if (!platCatalogo || !(platCatalogo.disponible ?? platCatalogo.Disponible) || cant > stockDisp) {
+        if (!platCatalogo || !(platCatalogo.disponible ?? platCatalogo.Disponible) || cant < 1 || cant > stockDisp) {
             mostrarToast(
                 `Stock insuficiente para "${platCatalogo?.nombre || 'Platillo'}": solicita ${cant} y solo quedan ${stockDisp} disponibles.`,
                 'critico'
@@ -598,6 +604,14 @@ export default function VistaMesero() {
 
     async function procesarCobroCuenta() {
         if (!pedidoMesaActiva) return;
+        const pedidoPendienteCocina = String(pedidoMesaActiva.estado || pedidoMesaActiva.Estado || '').toLowerCase() !== 'preparado';
+        if (pedidoPendienteCocina && !confirmarPagoAnticipado) {
+            mostrarToast(
+                'La comanda sigue en cocina y no está lista. Marca "Pago anticipado" si el cliente pagará por adelantado.',
+                'alerta'
+            );
+            return;
+        }
         if (errorValidacionCobro) {
             mostrarToast(errorValidacionCobro, 'critico');
             return;
@@ -651,18 +665,36 @@ export default function VistaMesero() {
                 numero_mesa: mesaACobrar,
                 id_pedido: pedidoMesaActiva.id_pedido,
                 mesera: usuarioActual.nombre,
+                pago_anticipado: pedidoPendienteCocina && confirmarPagoAnticipado,
                 pagos_divididos: pagosDivididos,
             });
             setModalCobroAbierto(false);
+            setConfirmarPagoAnticipado(false);
             setPlatillosSeleccionadosPago1({});
             mostrarToast(
-                `Mesa ${String(mesaACobrar).padStart(2, '0')} cobrada ($${res.data.totalCobrado.toFixed(2)}) y liberada.`,
+                res.data?.anticipado
+                    ? `Pago anticipado registrado ($${res.data.totalCobrado.toFixed(2)}). Comanda sigue en cocina hasta estar lista.`
+                    : `Mesa ${String(mesaACobrar).padStart(2, '0')} cobrada ($${res.data.totalCobrado.toFixed(2)}) y liberada.`,
                 'ok'
             );
-            cambiarVista('mapa_mesas');
+            if (!res.data?.anticipado) {
+                cambiarVista('mapa_mesas');
+            }
             cargarEstado();
         } catch (err) {
             mostrarToast(err.response?.data?.error || 'Error al cobrar cuenta', 'critico');
+        }
+    }
+
+    async function liberarMesaYaPagada() {
+        if (!pedidoMesaActiva) return;
+        try {
+            const res = await api.post(`/mesas/${pedidoMesaActiva.numero_mesa}/liberar-pagada`);
+            mostrarToast(res.data?.mensaje || 'Mesa liberada correctamente.', 'ok');
+            cambiarVista('mapa_mesas');
+            cargarEstado();
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'No se pudo liberar la mesa.', 'critico');
         }
     }
 
@@ -1294,10 +1326,11 @@ export default function VistaMesero() {
                                                     display: 'flex',
                                                     justifyContent: 'space-between',
                                                     alignItems: 'center',
+                                                    flexWrap: 'wrap',
                                                     gap: 10,
                                                 }}
                                             >
-                                                <div>
+                                                <div style={{ flex: '1 1 170px', minWidth: 0 }}>
                                                     <div
                                                         style={{
                                                             fontWeight: 600,
@@ -1318,10 +1351,11 @@ export default function VistaMesero() {
                                                 {esAgotado ? (
                                                     <span className="pill-badge red">Sin stock ($0)</span>
                                                 ) : (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
                                                         <div className="qty-stepper">
                                                             <button
                                                                 type="button"
+                                                                disabled={actualizandoPedido}
                                                                 onClick={() =>
                                                                     modificarCantidadDetalleActivo(pedidoMesaActiva.id_pedido, det, -1)
                                                                 }
@@ -1331,7 +1365,7 @@ export default function VistaMesero() {
                                                             <span>{det.cantidad}</span>
                                                             <button
                                                                 type="button"
-                                                                disabled={stockRestante <= 0}
+                                                                disabled={actualizandoPedido || stockRestante <= 0}
                                                                 style={{ opacity: stockRestante <= 0 ? 0.4 : 1 }}
                                                                 onClick={() =>
                                                                     modificarCantidadDetalleActivo(pedidoMesaActiva.id_pedido, det, 1)
@@ -1341,12 +1375,13 @@ export default function VistaMesero() {
                                                                 +
                                                             </button>
                                                         </div>
-                                                        <span style={{ fontWeight: 700, width: 48, textAlign: 'right' }}>
+                                                        <span style={{ fontWeight: 700, minWidth: 48, textAlign: 'right' }}>
                                                             ${det.subtotal}
                                                         </span>
                                                         <button
                                                             type="button"
                                                             className="remove-item-btn"
+                                                            disabled={actualizandoPedido}
                                                             title="Cancelar este platillo y regresar stock al inventario"
                                                             onClick={() =>
                                                                 eliminarPlatilloDeComandaActiva(
@@ -1506,19 +1541,67 @@ export default function VistaMesero() {
                                     <div className="panel-card">
                                         <div className="panel-card-title">Acciones de la mesa</div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                            <button
-                                                type="button"
-                                                className="primary-dark-btn"
-                                                onClick={() => {
-                                                    inicializarDivisionDinamica(
-                                                        pedidoMesaActiva.personas || 2,
-                                                        Number(pedidoMesaActiva.total || 0)
-                                                    );
-                                                    setModalCobroAbierto(true);
-                                                }}
-                                            >
-                                                Cobrar y cerrar mesa →
-                                            </button>
+                                            {pedidoMesaActiva.pagado ? (
+                                                <>
+                                                    <div
+                                                        style={{
+                                                            padding: '8px 10px',
+                                                            borderRadius: 8,
+                                                            background: '#f0fdf4',
+                                                            border: '1px solid #86efac',
+                                                            color: '#166534',
+                                                            fontSize: 12.5,
+                                                            fontWeight: 600,
+                                                        }}
+                                                    >
+                                                        Cuenta pagada por adelantado ·{' '}
+                                                        {(pedidoMesaActiva.estado || pedidoMesaActiva.Estado) === 'preparado'
+                                                            ? 'Lista en cocina'
+                                                            : 'Aún en preparación en cocina'}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="primary-dark-btn"
+                                                        onClick={liberarMesaYaPagada}
+                                                    >
+                                                        Entregar y liberar mesa →
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {(pedidoMesaActiva.estado || pedidoMesaActiva.Estado) !== 'preparado' && (
+                                                        <div
+                                                            style={{
+                                                                padding: '8px 10px',
+                                                                borderRadius: 8,
+                                                                background: '#fffbeb',
+                                                                border: '1px solid #fde68a',
+                                                                color: '#92400e',
+                                                                fontSize: 12,
+                                                                fontWeight: 600,
+                                                            }}
+                                                        >
+                                                            En cocina — aún no marcada como lista (cobro estándar bloqueado; requiere pago anticipado)
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className="primary-dark-btn"
+                                                        onClick={() => {
+                                                            inicializarDivisionDinamica(
+                                                                pedidoMesaActiva.personas || 2,
+                                                                Number(pedidoMesaActiva.total || 0)
+                                                            );
+                                                            setConfirmarPagoAnticipado(false);
+                                                            setModalCobroAbierto(true);
+                                                        }}
+                                                    >
+                                                        {(pedidoMesaActiva.estado || pedidoMesaActiva.Estado) === 'preparado'
+                                                            ? 'Cobrar y cerrar mesa →'
+                                                            : 'Cobrar anticipado →'}
+                                                    </button>
+                                                </>
+                                            )}
 
                                             <button
                                                 type="button"
@@ -1754,6 +1837,35 @@ export default function VistaMesero() {
                             </div>
                         )}
 
+                        {String(pedidoMesaActiva.estado || pedidoMesaActiva.Estado || '').toLowerCase() !== 'preparado' && (
+                            <div
+                                style={{
+                                    background: '#fffbeb',
+                                    border: '1px solid #fcd34d',
+                                    borderRadius: 8,
+                                    padding: '10px 12px',
+                                    marginBottom: 12,
+                                    fontSize: 12.5,
+                                    color: '#92400e',
+                                }}
+                            >
+                                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                                    Comanda aún pendiente en cocina
+                                </div>
+                                <div style={{ marginBottom: 8 }}>
+                                    El pedido todavía no se marca como listo. La mesa seguirá visible en cocina para preparación.
+                                </div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={confirmarPagoAnticipado}
+                                        onChange={(e) => setConfirmarPagoAnticipado(e.target.checked)}
+                                    />
+                                    <span>Confirmar pago anticipado del cliente</span>
+                                </label>
+                            </div>
+                        )}
+
                         {modoDivision === 'completa' && (
                             <div style={{ marginBottom: 16 }}>
                                 <label style={{ fontSize: 12.5, fontWeight: 600 }}>Método de pago de la cuenta completa:</label>
@@ -1962,29 +2074,38 @@ export default function VistaMesero() {
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button
-                                type="button"
-                                className="secondary-outline-btn"
-                                style={{ flex: 1 }}
-                                onClick={() => setModalCobroAbierto(false)}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="button"
-                                className="primary-dark-btn"
-                                style={{
-                                    flex: 2,
-                                    opacity: errorValidacionCobro ? 0.5 : 1,
-                                    cursor: errorValidacionCobro ? 'not-allowed' : 'pointer',
-                                }}
-                                disabled={!!errorValidacionCobro}
-                                onClick={procesarCobroCuenta}
-                            >
-                                Confirmar pago y liberar Mesa {String(pedidoMesaActiva.numero_mesa).padStart(2, '0')}
-                            </button>
-                        </div>
+                        {(() => {
+                            const requiereAnticipado =
+                                String(pedidoMesaActiva.estado || pedidoMesaActiva.Estado || '').toLowerCase() !== 'preparado';
+                            const bloqueoCobroModal = !!errorValidacionCobro || (requiereAnticipado && !confirmarPagoAnticipado);
+                            return (
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <button
+                                        type="button"
+                                        className="secondary-outline-btn"
+                                        style={{ flex: 1 }}
+                                        onClick={() => setModalCobroAbierto(false)}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="primary-dark-btn"
+                                        style={{
+                                            flex: 2,
+                                            opacity: bloqueoCobroModal ? 0.5 : 1,
+                                            cursor: bloqueoCobroModal ? 'not-allowed' : 'pointer',
+                                        }}
+                                        disabled={bloqueoCobroModal}
+                                        onClick={procesarCobroCuenta}
+                                    >
+                                        {requiereAnticipado
+                                            ? `Confirmar pago anticipado — Mesa ${String(pedidoMesaActiva.numero_mesa).padStart(2, '0')}`
+                                            : `Confirmar pago y liberar Mesa ${String(pedidoMesaActiva.numero_mesa).padStart(2, '0')}`}
+                                    </button>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

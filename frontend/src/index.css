@@ -37,8 +37,9 @@
 
 html,
 body {
+  width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
   font-family: 'Inter', 'Roboto', 'Open Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-main);
   color: var(--text-primary);
@@ -47,7 +48,9 @@ body {
 
 #root {
   min-height: 100vh;
+  width: 100%;
   max-width: 100%;
+  overflow-x: clip;
 }
 
 /* ==========================================================================
@@ -57,8 +60,9 @@ body {
   display: flex;
   flex-direction: row;
   min-height: 100vh;
+  width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
   position: relative;
 }
 
@@ -356,6 +360,10 @@ body {
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
   flex-shrink: 0;
+}
+
+.hamburger-btn.mobile-menu-trigger {
+  display: none;
 }
 
 .hamburger-btn:hover {
@@ -1033,16 +1041,32 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .qty-stepper button {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
   border: 1px solid var(--border-light);
   background: #f9fafb;
   cursor: pointer;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+  padding: 0;
+}
+
+.primary-dark-btn:disabled,
+.secondary-outline-btn:disabled,
+.danger-outline-btn:disabled,
+.danger-solid-btn:disabled,
+.ko-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 .primary-dark-btn {
@@ -1111,14 +1135,17 @@ body {
 }
 
 .remove-item-btn {
-  width: 26px;
-  height: 26px;
+  min-width: 58px;
+  height: 28px;
+  padding: 0 10px;
   border-radius: 6px;
   border: 1px solid #fecaca;
   background: #fef2f2;
   color: #dc2626;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -1357,7 +1384,7 @@ body {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .sidebar {
     position: fixed;
     top: 0;
@@ -1375,6 +1402,8 @@ body {
     width: 245px;
     transform: translateX(-105%);
     box-shadow: none;
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .sidebar-backdrop.open {
@@ -1385,7 +1414,7 @@ body {
     z-index: 1000;
   }
 
-  .mobile-menu-trigger {
+  .hamburger-btn.mobile-menu-trigger {
     display: inline-flex;
   }
 

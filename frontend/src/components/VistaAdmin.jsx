@@ -54,11 +54,11 @@ export default function VistaAdmin() {
             ? 'configuracion'
             : 'dashboard'
     );
-    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true));
+    const [menuAbierto, setMenuAbierto] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 900 : true));
 
     useEffect(() => {
         const onResize = () => {
-            if (window.innerWidth <= 768) setMenuAbierto(false);
+            if (window.innerWidth <= 900) setMenuAbierto(false);
         };
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
@@ -140,7 +140,7 @@ export default function VistaAdmin() {
 
     function cambiarVista(nuevaVista) {
         setVistaAdmin(nuevaVista);
-        if (window.innerWidth <= 768) {
+        if (window.innerWidth <= 900) {
             setMenuAbierto(false);
         }
     }
@@ -278,6 +278,16 @@ export default function VistaAdmin() {
             cargarEstadoAdmin();
         } catch (err) {
             mostrarToast(err.response?.data?.error || 'Error al actualizar disponibilidad', 'critico');
+        }
+    }
+
+    async function actualizarMetodoPagoReporte(idPago, nuevoMetodo) {
+        try {
+            const res = await api.patch(`/pagos/${idPago}`, { metodo: nuevoMetodo });
+            mostrarToast(res.data?.mensaje || `Pago #${idPago} actualizado a ${nuevoMetodo}.`, 'ok');
+            cargarEstadoAdmin();
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'No se pudo modificar el pago', 'critico');
         }
     }
 
@@ -2031,7 +2041,24 @@ export default function VistaAdmin() {
                                                             <td>{p.concepto_division}</td>
                                                             <td>{p.mesera}</td>
                                                             <td>
-                                                                <span className="pill-badge green">{p.metodo}</span>
+                                                                <select
+                                                                    value={p.metodo || 'Efectivo'}
+                                                                    onChange={(e) => actualizarMetodoPagoReporte(p.id_pago, e.target.value)}
+                                                                    aria-label={`Método de pago folio ${p.id_pago}`}
+                                                                    style={{
+                                                                        padding: '4px 8px',
+                                                                        borderRadius: 6,
+                                                                        border: '1px solid #d1d5db',
+                                                                        background: '#ffffff',
+                                                                        fontSize: 12,
+                                                                        fontWeight: 600,
+                                                                        color: '#166534',
+                                                                    }}
+                                                                >
+                                                                    {['Efectivo', 'Tarjeta de crédito', 'Tarjeta de débito', 'Transferencia', 'Monedero electrónico'].map((op) => (
+                                                                        <option key={op} value={op}>{op}</option>
+                                                                    ))}
+                                                                </select>
                                                             </td>
                                                             <td style={{ fontWeight: 700 }}>${Number(p.monto).toFixed(2)}</td>
                                                             <td>{p.hora}</td>
