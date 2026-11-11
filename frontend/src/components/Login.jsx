@@ -1,18 +1,63 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import api, { guardarSesionActiva } from '../services/api';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import api, { guardarSesionActiva, obtenerSesionActiva, limpiarSesionActiva } from '../services/api';
 
 export default function Login() {
     const [nombre, setNombre] = useState('');
     const [contrasena, setContrasena] = useState('');
     const [mostrarPass, setMostrarPass] = useState(false);
     const [error, setError] = useState('');
+    const [avisoSeguridad, setAvisoSeguridad] = useState('');
     const [cargando, setCargando] = useState(false);
+    const [modalQrAbierto, setModalQrAbierto] = useState(false);
+    const [infoQr, setInfoQr] = useState(null);
+    const [cargandoQr, setCargandoQr] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Blindaje de historial y sesión: si el usuario vuelve al Login (ej. botón "Atrás" del navegador),
+    // se invalida y revoca inmediatamente cualquier sesión activa para exigir nueva autenticación.
+    useEffect(() => {
+        const sesionPrevia = obtenerSesionActiva();
+        if (sesionPrevia?.token) {
+            const tokenARevocar = sesionPrevia.token;
+            limpiarSesionActiva();
+            setAvisoSeguridad('Sesión cerrada por seguridad al salir del área operativa. Inicie sesión nuevamente.');
+            api.post('/auth/logout', {}, {
+                headers: { Authorization: `Bearer ${tokenARevocar}` }
+            }).catch(() => {});
+        } else if (location.state?.sesionCerrada) {
+            limpiarSesionActiva();
+            setAvisoSeguridad('Sesión cerrada correctamente. Ingrese sus credenciales para volver a entrar.');
+        }
+
+        const manejarPageshow = (e) => {
+            if (e.persisted) {
+                limpiarSesionActiva();
+                window.location.reload();
+            }
+        };
+        window.addEventListener('pageshow', manejarPageshow);
+        const abrirAccesoQr = async () => {
+        setModalQrAbierto(true);
+        setCargandoQr(true);
+        try {
+            const res = await api.get('/sistema/red-qr');
+            setInfoQr(res.data);
+        } catch {
+            setInfoQr(null);
+        } finally {
+            setCargandoQr(false);
+        }
+    };
+
+    return () => window.removeEventListener('pageshow', manejarPageshow);
+    }, [location.key]);
 
     const manejarLogin = async (e) => {
         e.preventDefault();
         setError('');
+        setAvisoSeguridad('');
 
         if (!nombre.trim() || !contrasena.trim()) {
             setError('Por favor ingrese su usuario y contraseña.');
@@ -34,15 +79,28 @@ export default function Login() {
                     usuario: respuesta.data.usuario
                 });
 
-                if (rol === 'administrador') navigate('/admin');
-                else if (rol === 'cocina') navigate('/cocina');
-                else if (rol === 'mesera') navigate('/mesero');
-                else navigate('/mesero');
+                if (rol === 'administrador') navigate('/admin', { replace: true });
+                else if (rol === 'cocina') navigate('/cocina', { replace: true });
+                else if (rol === 'mesera') navigate('/mesero', { replace: true });
+                else navigate('/mesero', { replace: true });
             }
         } catch (err) {
             setError(err.response?.data?.error || 'Usuario o contraseña incorrectos.');
         } finally {
             setCargando(false);
+        }
+    };
+
+    const abrirAccesoQr = async () => {
+        setModalQrAbierto(true);
+        setCargandoQr(true);
+        try {
+            const res = await api.get('/sistema/red-qr');
+            setInfoQr(res.data);
+        } catch {
+            setInfoQr(null);
+        } finally {
+            setCargandoQr(false);
         }
     };
 
@@ -141,6 +199,22 @@ export default function Login() {
                         Ingrese sus credenciales de colaborador para acceder a su área asignada.
                     </p>
 
+                    {avisoSeguridad && (
+                        <div
+                            style={{
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                color: '#1e3a8a',
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                marginBottom: '16px',
+                            }}
+                        >
+                            {avisoSeguridad}
+                        </div>
+                    )}
+
                     {error && (
                         <div
                             style={{
@@ -228,8 +302,101 @@ export default function Login() {
                             {cargando ? 'Verificando acceso...' : 'Iniciar sesión'}
                         </button>
                     </form>
+
+                    <div
+                        style={{
+                            marginTop: '18px',
+                            paddingTop: '16px',
+                            borderTop: '1px solid #e2e8f0',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '10px',
+                        }}
+                    >
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>
+                            Acceso en celular o tableta local
+                        </span>
+                        <button
+                            type="button"
+                            className="secondary-outline-btn"
+                            style={{ padding: '6px 12px', fontSize: '12px' }}
+                            onClick={abrirAccesoQr}
+                        >
+                            Ver código QR móvil
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            {modalQrAbierto && (
+                <div className="modal-overlay" onClick={() => setModalQrAbierto(false)}>
+                    <div
+                        className="modal-card"
+                        style={{ maxWidth: '410px', textAlign: 'center' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="panel-card-header" style={{ marginBottom: 12 }}>
+                            <span className="panel-card-title" style={{ marginBottom: 0 }}>
+                                Acceso móvil en red local
+                            </span>
+                            <button
+                                type="button"
+                                className="secondary-outline-btn"
+                                style={{ padding: '4px 10px', fontSize: '12px' }}
+                                onClick={() => setModalQrAbierto(false)}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                        <div style={{ padding: '6px 4px 10px' }}>
+                            {cargandoQr ? (
+                                <p style={{ fontSize: '13px', color: '#64748b' }}>Generando código QR de red local...</p>
+                            ) : infoQr?.qrSvg ? (
+                                <>
+                                    <p style={{ fontSize: '13px', color: '#475569', marginBottom: '14px' }}>
+                                        Escanee con la cámara del teléfono conectado al mismo Wi-Fi. Desde el navegador móvil seleccione Instalar aplicación para abrirla como aplicación nativa.
+                                    </p>
+                                    <div
+                                        style={{
+                                            display: 'inline-block',
+                                            padding: '12px',
+                                            background: '#ffffff',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '8px',
+                                            marginBottom: '12px',
+                                        }}
+                                        dangerouslySetInnerHTML={{ __html: infoQr.qrSvg }}
+                                    />
+                                    <div
+                                        style={{
+                                            background: '#f8fafc',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '6px',
+                                            padding: '8px 10px',
+                                            fontSize: '12px',
+                                            fontFamily: 'monospace',
+                                            color: '#0f172a',
+                                            wordBreak: 'break-all',
+                                        }}
+                                    >
+                                        {infoQr.urlPrincipal}
+                                    </div>
+                                    {infoQr.urlsAlternativas?.length > 1 && (
+                                        <p style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+                                            Otras interfaces de red: {infoQr.urlsAlternativas.join(' · ')}
+                                        </p>
+                                    )}
+                                </>
+                            ) : (
+                                <p style={{ fontSize: '13px', color: '#991b1b' }}>
+                                    No se pudo obtener la dirección de red local del servidor.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div
                 style={{

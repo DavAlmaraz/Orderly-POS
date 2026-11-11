@@ -1,9 +1,13 @@
 const express = require('express');
 const http = require('http');
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const QRCode = require('qrcode');
 const {
     verificarToken,
     verificarRol,
@@ -86,13 +90,11 @@ io.use((socket, next) => {
         socket.handshake.auth?.token ||
         (socket.handshake.headers?.authorization ? socket.handshake.headers.authorization.split(' ')[1] : null);
     const usuarioVerificado = esTokenValidoSinMiddleware(token);
-    if (usuarioVerificado) {
-        socket.usuario = usuarioVerificado;
-        socket.join(`rol:${usuarioVerificado.rol}`);
-        return next();
+    if (!usuarioVerificado) {
+        return next(new Error('Autenticación requerida para conectar WebSocket'));
     }
-    // Si un cliente aún no envía token, se le marca como invitado restringido sin acceso a finanzas/auditoría
-    socket.usuario = null;
+    socket.usuario = usuarioVerificado;
+    socket.join(`rol:${usuarioVerificado.rol}`);
     return next();
 });
 
@@ -160,8 +162,8 @@ function emitirPushCritica(alerta) {
         categoria: payload.categoria || 'inventario',
         numero_mesa: payload.numero_mesa || null,
     });
-    io.emit('alerta:push_critica', payload);
-    io.emit('notificacion:emergente', {
+    io.to('rol:administrador').to('rol:cocina').to('rol:mesera').emit('alerta:push_critica', payload);
+    io.to('rol:administrador').to('rol:cocina').to('rol:mesera').emit('notificacion:emergente', {
         id: payload.id,
         rol_destino: payload.rol_destino || 'todos',
         titulo: payload.titulo,
@@ -190,7 +192,7 @@ function ajustarStockEInsumosDePlatillo(plat, deltaUnidades) {
                 rol_destino: 'todos',
                 categoria: 'platillo_agotado',
                 severidad: 'critico',
-                titulo: `🚨 Platillo AGOTADO: ${plat.nombre}`,
+                titulo: `Platillo AGOTADO: ${plat.nombre}`,
                 mensaje: `"${plat.nombre}" acaba de llegar a 0 ${plat.unidad_stock || 'porciones'}. Se deshabilitó automáticamente del menú.`,
             });
         } else if (nuevoStock > 0 && nuevoStock <= 2 && stockAnterior > 2) {
@@ -198,7 +200,7 @@ function ajustarStockEInsumosDePlatillo(plat, deltaUnidades) {
                 rol_destino: 'todos',
                 categoria: 'platillo_bajo',
                 severidad: 'alerta',
-                titulo: `⚠️ Últimas porciones: ${plat.nombre}`,
+                titulo: `Últimas porciones: ${plat.nombre}`,
                 mensaje: `Solo quedan ${nuevoStock} ${plat.unidad_stock || 'porciones'} disponibles de "${plat.nombre}".`,
             });
         }
@@ -221,8 +223,8 @@ function ajustarStockEInsumosDePlatillo(plat, deltaUnidades) {
                         severidad: nivelNuevo === 'crítico' ? 'critico' : 'alerta',
                         titulo:
                             nivelNuevo === 'crítico'
-                                ? `🚨 Insumo CRÍTICO: ${insumo.nombre}`
-                                : `⚠️ Insumo bajo mínimo: ${insumo.nombre}`,
+                                ? `Insumo CRÍTICO: ${insumo.nombre}`
+                                : `Insumo bajo mínimo: ${insumo.nombre}`,
                         mensaje: `El insumo "${insumo.nombre}" descendió a ${insumo.cantidad} ${insumo.unidad} (mínimo requerido: ${insumo.minimo_alerta} ${insumo.unidad}). Solicitar reabastecimiento.`,
                         id_insumo: insumo.id_insumo,
                     });
@@ -450,8 +452,8 @@ function obtenerSnapshotEstado(rolSolicitante = 'administrador') {
         alertasCriticasRestaurante,
         mesas: estado.mesas,
         pedidos: estado.pedidos,
-        pagos: esAdmin ? estado.pagos : estado.pagos.slice(0, 15),
-        ultimasTransacciones: esAdmin ? ultimasTransacciones : ultimasTransacciones.slice(0, 8),
+        pagos: esAdmin ? estado.pagos : rolSolicitante === 'mesera' ? estado.pagos.slice(0, 15) : [],
+        ultimasTransacciones: esAdmin ? ultimasTransacciones : rolSolicitante === 'mesera' ? ultimasTransacciones.slice(0, 8) : [],
         metricasDia: {
             ...estado.metricasDia,
             comparativaAyer: estado.metricasDia.porcentajeVsAyer || '↑ 12% vs ayer',
@@ -459,19 +461,23 @@ function obtenerSnapshotEstado(rolSolicitante = 'administrador') {
         },
         notificaciones: estado.notificaciones.slice(0, 30),
         logsAuditoria: esAdmin ? estado.logsAuditoria : [],
-        ultimoRespaldo: estado.ultimoRespaldo,
+        ultimoRespaldo: esAdmin ? estado.ultimoRespaldo : null,
         motorBaseDatos: estado.motorBaseDatos,
-        conexionMySQL: obtenerEstadoConexionMySQL(),
+        conexionMySQL: esAdmin ? obtenerEstadoConexionMySQL() : { conectado: estado.mysqlDisponible },
         turnoActivo: estado.turnoActivo,
         maxPersonasPorMesa: MAX_PERSONAS_POR_MESA,
     };
 }
 
 function emitirActualizacionTiempoReal(evento = 'estado:actualizado', payloadExtra = {}) {
-    const snapshotCompleto = obtenerSnapshotEstado('administrador');
-    io.emit('estado:actualizado', snapshotCompleto);
+    io.to('rol:administrador').emit('estado:actualizado', obtenerSnapshotEstado('administrador'));
+    io.to('rol:mesera').emit('estado:actualizado', obtenerSnapshotEstado('mesera'));
+    io.to('rol:cocina').emit('estado:actualizado', obtenerSnapshotEstado('cocina'));
     if (evento !== 'estado:actualizado') {
-        io.emit(evento, { ...payloadExtra, timestamp: new Date().toISOString() });
+        io.to('rol:administrador').to('rol:mesera').to('rol:cocina').emit(evento, {
+            ...payloadExtra,
+            timestamp: new Date().toISOString()
+        });
     }
 }
 
@@ -498,9 +504,9 @@ function agregarNotificacion(rol_destino, titulo, mensaje, tipo = 'info', extra 
         ...extra,
     };
     estado.notificaciones.unshift(notif);
-    io.emit('notificacion:emergente', notif);
+    io.to('rol:administrador').to('rol:mesera').to('rol:cocina').emit('notificacion:emergente', notif);
     if (tipo === 'critico' || tipo === 'alerta') {
-        io.emit('alerta:push_critica', {
+        io.to('rol:administrador').to('rol:mesera').to('rol:cocina').emit('alerta:push_critica', {
             ...notif,
             severidad: tipo,
             esPushCritica: true,
@@ -510,12 +516,16 @@ function agregarNotificacion(rol_destino, titulo, mensaje, tipo = 'info', extra 
 }
 
 io.on('connection', (socket) => {
-    const rolSocket = socket.usuario?.rol || 'administrador';
+    const rolSocket = socket.usuario?.rol;
+    if (!rolSocket) {
+        socket.disconnect(true);
+        return;
+    }
     socket.emit('estado:actualizado', obtenerSnapshotEstado(rolSocket));
 
     socket.on('enviar_pedido', (pedido) => {
         if (!socket.usuario) return;
-        io.emit('nuevo_pedido', pedido);
+        io.to('rol:administrador').to('rol:mesera').to('rol:cocina').emit('nuevo_pedido', pedido);
         emitirActualizacionTiempoReal();
     });
 });
@@ -524,14 +534,9 @@ io.on('connection', (socket) => {
 // ENDPOINTS DE AUTENTICACIÓN Y SEGURIDAD
 // ============================================================================
 
-app.get('/api/auth/perfiles', (_req, res) => {
+app.get('/api/auth/perfiles', verificarToken, verificarRol(['administrador']), (_req, res) => {
     return res.json({
         usuarios: estado.usuarios.filter((u) => u.activo !== false).map(serializarUsuarioPublico),
-        resumenPublico: {
-            mesasLibres: estado.mesas.filter((m) => m.estado === 'libre').length,
-            totalMesas: estado.mesas.length,
-            servidorActivo: true,
-        },
     });
 });
 
@@ -561,14 +566,12 @@ async function manejarLogin(req, res) {
                 usuario = estado.usuarios.find(u => {
                     const nomNorm = normalizar(u.nombre);
                     const logNorm = normalizar(u.usuario_login);
-                    const rolNorm = normalizar(u.rol);
                     return (
                         nomNorm === buscadoNorm ||
                         logNorm === buscadoNorm ||
-                        rolNorm === buscadoNorm ||
-                        (u.id_usuario === 1 && ['jesus', 'j. david', 'david', 'admin', 'administrador'].includes(buscadoNorm)) ||
-                        (u.id_usuario === 2 && ['maria', 'maria g.', 'maria garcia', 'mesera'].includes(buscadoNorm)) ||
-                        (u.id_usuario === 3 && ['roberto', 'cocina', 'chef'].includes(buscadoNorm)) ||
+                        (u.id_usuario === 1 && ['jesus', 'j. david', 'david'].includes(buscadoNorm)) ||
+                        (u.id_usuario === 2 && ['maria', 'maria g.', 'maria garcia'].includes(buscadoNorm)) ||
+                        (u.id_usuario === 3 && ['roberto'].includes(buscadoNorm)) ||
                         (u.id_usuario === 4 && ['ana', 'ana l.'].includes(buscadoNorm))
                     );
                 });
@@ -866,7 +869,7 @@ async function cambiarDisponibilidadPlatillo(req, res) {
             rol_destino: 'todos',
             categoria: 'platillo_agotado',
             severidad: 'critico',
-            titulo: `🚨 Platillo agotado en cocina: ${platillo.nombre}`,
+            titulo: `Platillo agotado en cocina: ${platillo.nombre}`,
             mensaje: msg,
         });
     } else {
@@ -1120,7 +1123,7 @@ async function cancelarOrdenActiva(req, res) {
         severidad: 'critico',
         numero_mesa: numMesa,
         id_pedido: idPed,
-        titulo: `🚨 Orden CANCELADA — Mesa ${String(numMesa).padStart(2, '0')}`,
+        titulo: `Orden CANCELADA — Mesa ${String(numMesa).padStart(2, '0')}`,
         mensaje: `${autor} canceló la comanda #${idPed} de la Mesa ${String(numMesa).padStart(2, '0')}. Motivo: ${motivo}.`,
     });
 
@@ -1302,7 +1305,7 @@ async function actualizarEstadoPedido(req, res) {
                 severidad: 'alerta',
                 numero_mesa: pedido.numero_mesa,
                 id_pedido: pedido.id_pedido,
-                titulo: `⏳ Tiempo extendido — Mesa ${String(pedido.numero_mesa).padStart(2, '0')}`,
+                titulo: `Tiempo extendido — Mesa ${String(pedido.numero_mesa).padStart(2, '0')}`,
                 mensaje: `Cocina informa +${tiempo_extendido} min adicionales de preparación para la Mesa ${String(pedido.numero_mesa).padStart(2, '0')}.`,
             });
         }
@@ -1320,7 +1323,7 @@ async function actualizarEstadoPedido(req, res) {
                 severidad: 'critico',
                 numero_mesa: pedido.numero_mesa,
                 id_pedido: pedido.id_pedido,
-                titulo: `🚨 Platillo agotado — Mesa ${String(pedido.numero_mesa).padStart(2, '0')}`,
+                titulo: `Platillo agotado — Mesa ${String(pedido.numero_mesa).padStart(2, '0')}`,
                 mensaje: `Cocina notificó platillo sin stock en la Mesa ${String(pedido.numero_mesa).padStart(2, '0')}.`,
             });
         } else if (nuevoEstado) {
@@ -1400,8 +1403,8 @@ app.patch('/api/inventario/:id', verificarToken, verificarRol(['administrador', 
             severidad: nivelActual === 'crítico' ? 'critico' : 'alerta',
             titulo:
                 nivelActual === 'crítico'
-                    ? `🚨 Alerta Push Crítica: ${insumo.nombre} agotándose`
-                    : `⚠️ Alerta Push Inventario: ${insumo.nombre} en nivel bajo`,
+                    ? `Alerta Push Crítica: ${insumo.nombre} agotándose`
+                    : `Alerta Push Inventario: ${insumo.nombre} en nivel bajo`,
             mensaje: `${insumo.nombre} quedó en ${insumo.cantidad} ${insumo.unidad} tras ${tipo_movimiento === 'merma' ? 'registro de merma' : 'ajuste'} (${motivo}). Mínimo requerido: ${insumo.minimo_alerta} ${insumo.unidad}.`,
             id_insumo: insumo.id_insumo,
         });
@@ -1737,7 +1740,7 @@ app.post('/api/notificaciones/push-criticas', verificarToken, (req, res) => {
         rol_destino: req.body?.rol_destino || 'todos',
         categoria: 'barrido_critico',
         severidad: criticos.length > 0 || agotados.length > 0 ? 'critico' : 'alerta',
-        titulo: `🔔 Alerta Push Operativa (${snapshot.alertasCriticasRestaurante.length} alertas activas)`,
+        titulo: `Alerta Push Operativa (${snapshot.alertasCriticasRestaurante.length} alertas activas)`,
         mensaje: resumenPartes.length > 0
             ? resumenPartes.join(' · ')
             : 'Todos los insumos y platillos operan en niveles óptimos.',
@@ -1763,6 +1766,64 @@ app.post('/api/sistema/respaldo', verificarToken, verificarRol(['administrador']
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
+
+function obtenerIpsRedLocal() {
+    const interfaces = os.networkInterfaces();
+    const resultados = [];
+    for (const [nombre, entradas] of Object.entries(interfaces)) {
+        for (const info of entradas || []) {
+            if (info.family === 'IPv4' && !info.internal) {
+                resultados.push({ interfaz: nombre, ip: info.address });
+            }
+        }
+    }
+    resultados.sort((a, b) => {
+        const esWifiA = /wi-?fi|wlan|wireless/i.test(a.interfaz) ? 0 : 1;
+        const esWifiB = /wi-?fi|wlan|wireless/i.test(b.interfaz) ? 0 : 1;
+        return esWifiA - esWifiB;
+    });
+    return resultados;
+}
+
+app.get('/api/sistema/red-qr', async (_req, res) => {
+    try {
+        const ips = obtenerIpsRedLocal();
+        const ipPrincipal = ips[0]?.ip || '127.0.0.1';
+        const urlPrincipal = `http://${ipPrincipal}:${PORT}/login`;
+        const urlsAlternativas = ips.map((item) => `http://${item.ip}:${PORT}/login`);
+        const qrSvg = await QRCode.toString(urlPrincipal, {
+            type: 'svg',
+            width: 210,
+            margin: 1,
+            color: { dark: '#111827', light: '#ffffff' }
+        });
+        return res.json({
+            ipPrincipal,
+            puerto: PORT,
+            urlPrincipal,
+            urlsAlternativas,
+            qrSvg,
+        });
+    } catch (error) {
+        console.error('Error al generar QR de red local:', error);
+        return res.status(500).json({ error: 'No se pudo generar el código QR de red local.' });
+    }
+});
+
+// Servir frontend compilado desde Express en el puerto principal para facilitar acceso en otras PC y móviles
+const FRONTEND_DIST_DIR = path.join(__dirname, '..', 'frontend', 'dist');
+if (fs.existsSync(FRONTEND_DIST_DIR)) {
+    app.use(express.static(FRONTEND_DIST_DIR));
+    app.use((req, res, next) => {
+        if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+            return next();
+        }
+        return res.sendFile('index.html', { root: FRONTEND_DIST_DIR });
+    });
+}
+
+server.listen(PORT, '0.0.0.0', () => {
+    const ips = obtenerIpsRedLocal();
+    const urlLan = ips[0] ? `http://${ips[0].ip}:${PORT}` : `http://localhost:${PORT}`;
+    console.log(`Servidor Orderly POS activo en http://localhost:${PORT} (Red local: ${urlLan})`);
 });

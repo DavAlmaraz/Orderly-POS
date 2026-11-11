@@ -481,7 +481,7 @@ async function conectarYMigrarMySQL(nuevaConfig = null, guardarEnEnv = false) {
             fs.writeFileSync(ENV_PATH, envContent, 'utf-8');
         }
 
-        console.log(`✅ Conectado exitosamente a MySQL Server ${versionDetectada} (${mysqlConfigActual.database} · Workbench 8.0)`);
+        console.log(`Conectado exitosamente a MySQL Server ${versionDetectada} (${mysqlConfigActual.database} · Workbench 8.0)`);
         return {
             conectado: true,
             version: versionDetectada,
@@ -531,7 +531,7 @@ function obtenerEstadoConexionMySQL() {
 // Intentar conectar al arrancar el servidor
 conectarYMigrarMySQL().then((res) => {
     if (!res.conectado) {
-        console.log(`ℹ️ MySQL local en espera de contraseña root (${res.error}). Motor Resiliente ACID activo.`);
+        console.log(`MySQL local en espera de contraseña root (${res.error}). Motor Resiliente ACID activo.`);
     }
 });
 

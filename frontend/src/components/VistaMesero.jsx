@@ -46,7 +46,7 @@ export default function VistaMesero() {
         setPermisoPush(res);
         if (res === 'granted') {
             dispararNotificacionPushNavegador({
-                titulo: '🔔 Notificaciones Push de Salón Activadas',
+                titulo: 'Notificaciones Push de Salón Activadas',
                 mensaje: 'Recibirás avisos inmediatos cuando tus comandas estén listas, un platillo se agote o haya alertas críticas.',
                 severidad: 'ok',
             });
@@ -683,7 +683,7 @@ export default function VistaMesero() {
             // Ignorar si ya expiró
         }
         limpiarSesionActiva();
-        navigate('/login');
+        navigate('/login', { replace: true, state: { sesionCerrada: true } });
     };
 
     if (!estado) {
@@ -791,7 +791,7 @@ export default function VistaMesero() {
                                 onClick={() => setMenuAbierto(false)}
                                 aria-label="Cerrar menú"
                             >
-                                ✕
+                                Cerrar
                             </button>
                         </div>
 
@@ -878,7 +878,7 @@ export default function VistaMesero() {
                                 onClick={activarPushMesera}
                                 title="Activar notificaciones Push del sistema para alertas de comandas e insumos"
                             >
-                                🔔 {permisoPush === 'granted' ? 'Push Activo' : 'Activar Push'}
+                                {permisoPush === 'granted' ? 'Push activo' : 'Activar alertas Push'}
                             </button>
                             {vistaMesera === 'mapa_mesas' && (
                                 <>
@@ -1362,7 +1362,7 @@ export default function VistaMesero() {
                                                                 )
                                                             }
                                                         >
-                                                            ✕
+                                                            Quitar
                                                         </button>
                                                     </div>
                                                 )}
@@ -1584,7 +1584,7 @@ export default function VistaMesero() {
                                                 style={{ marginTop: 4 }}
                                                 onClick={() => setModalCancelarAbierto(true)}
                                             >
-                                                ✕ Cancelar orden y liberar mesa
+                                                Cancelar orden y liberar mesa
                                             </button>
                                         </div>
                                     </div>

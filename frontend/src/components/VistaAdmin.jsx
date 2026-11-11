@@ -65,6 +65,7 @@ export default function VistaAdmin() {
     // Notificaciones Push y Alertas Críticas en tiempo real
     const [permisoPush, setPermisoPush] = useState(() => obtenerEstadoPermisoPush());
     const [alertasPushFlotantes, setAlertasPushFlotantes] = useState([]);
+    const [qrRed, setQrRed] = useState(null);
 
     // Configuración MySQL Server 9.4.0 & MySQL Workbench 8.0
     const [formMySQL, setFormMySQL] = useState({
@@ -166,7 +167,7 @@ export default function VistaAdmin() {
         setPermisoPush(res);
         if (res === 'granted') {
             dispararNotificacionPushNavegador({
-                titulo: '🔔 Notificaciones Push Activadas',
+                titulo: 'Notificaciones Push Activadas',
                 mensaje: 'Recibirás alertas inmediatas de insumos bajos/críticos, platillos agotados y comandas urgentes.',
                 severidad: 'ok',
             });
@@ -176,12 +177,12 @@ export default function VistaAdmin() {
         }
     }
 
-    async function enviarBarridoPushCriticas() {
+    async function cargarQrRed() {
         try {
-            const res = await api.post('/notificaciones/push-criticas', { rol_destino: 'todos' });
-            mostrarToast(res.data?.mensaje || 'Alerta Push enviada a todos los dispositivos.', 'ok');
-        } catch (err) {
-            mostrarToast(err.response?.data?.error || 'Error al emitir notificación Push', 'critico');
+            const res = await api.get('/sistema/red-qr');
+            setQrRed(res.data);
+        } catch {
+            setQrRed(null);
         }
     }
 
@@ -512,7 +513,7 @@ export default function VistaAdmin() {
             // Ignorar si expiró
         }
         limpiarSesionActiva();
-        navigate('/login');
+        navigate('/login', { replace: true, state: { sesionCerrada: true } });
     };
 
     const transaccionesFiltradas = useMemo(() => {
@@ -629,7 +630,7 @@ export default function VistaAdmin() {
                                 onClick={() => setMenuAbierto(false)}
                                 aria-label="Cerrar menú"
                             >
-                                ✕
+                                Cerrar
                             </button>
                         </div>
 
@@ -692,7 +693,10 @@ export default function VistaAdmin() {
                             <div className="nav-section-label">CUENTA</div>
                             <button
                                 className={`nav-item ${vistaAdmin === 'configuracion' ? 'active' : ''}`}
-                                onClick={() => cambiarVista('configuracion')}
+                                onClick={() => {
+                                    cambiarVista('configuracion');
+                                    cargarQrRed();
+                                }}
                             >
                                 <span>Configuración / Respaldos</span>
                             </button>
@@ -726,7 +730,7 @@ export default function VistaAdmin() {
                                 <span className="hamburger-line" />
                             </button>
                             <h1 className="top-header-title">
-                                {vistaAdmin === 'dashboard' && 'Resumen del día'}
+                                {vistaAdmin === 'dashboard' && 'Dashboard — Resumen del día'}
                                 {vistaAdmin === 'mesas' && 'Mesas en tiempo real (10 mesas)'}
                                 {vistaAdmin === 'comandas' && 'Comandas registradas'}
                                 {vistaAdmin === 'catalogo' && 'Catálogo de platillos y precios'}
@@ -745,7 +749,7 @@ export default function VistaAdmin() {
                                 onClick={activarNotificacionesPush}
                                 title="Activar notificaciones Push del sistema para alertas de insumos bajos y comandas críticas"
                             >
-                                <span>🔔 {permisoPush === 'granted' ? 'Push Activo' : 'Activar Push'}</span>
+                                <span>{permisoPush === 'granted' ? 'Push activo' : 'Activar alertas Push'}</span>
                             </button>
                             <button
                                 type="button"
@@ -757,7 +761,7 @@ export default function VistaAdmin() {
                                 <span>
                                     Turno activo · {estado.turnoActivo?.modalidad || 'Turno completo'} ({estado.turnoActivo?.horario_texto || '8am - 10pm'}) · Resp: {estado.turnoActivo?.nombre_responsable || 'J. David'}
                                 </span>
-                                <span style={{ textDecoration: 'underline', fontWeight: 700, marginLeft: 4 }}>Editar ✎</span>
+                                <span style={{ textDecoration: 'underline', fontWeight: 700, marginLeft: 4 }}>Editar</span>
                             </button>
                             {estado.alertasActivasCount > 0 && (
                                 <button
@@ -766,7 +770,7 @@ export default function VistaAdmin() {
                                     style={{ border: 'none', cursor: 'pointer' }}
                                     onClick={() => cambiarVista('inventario')}
                                 >
-                                    {estado.alertasActivasCount} alertas de inventario →
+                                    {estado.alertasActivasCount} alertas de inventario
                                 </button>
                             )}
                         </div>
@@ -790,20 +794,11 @@ export default function VistaAdmin() {
                                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                             <button
                                                 type="button"
-                                                className="primary-dark-btn"
-                                                style={{ padding: '6px 12px', fontSize: 12, background: '#991b1b' }}
-                                                onClick={enviarBarridoPushCriticas}
-                                                title="Disparar notificación Push instantánea a Meseras, Cocina y Administración"
-                                            >
-                                                🔔 Enviar Push de Alerta Crítica
-                                            </button>
-                                            <button
-                                                type="button"
                                                 className="secondary-outline-btn"
                                                 style={{ padding: '6px 12px', fontSize: 12, borderColor: '#fca5a5', color: '#991b1b' }}
                                                 onClick={() => abrirModalProveedores('')}
                                             >
-                                                Llamar a proveedores →
+                                                Llamar a proveedores
                                             </button>
                                         </div>
                                     </div>
@@ -1145,7 +1140,7 @@ export default function VistaAdmin() {
                                                                 })
                                                             }
                                                         >
-                                                            Ajustar turno ✎
+                                                            Ajustar turno
                                                         </button>
                                                     </div>
                                                 </div>
@@ -1509,7 +1504,7 @@ export default function VistaAdmin() {
                                                                         fontSize: 12,
                                                                     }}
                                                                 >
-                                                                    Quitar ✕
+                                                                    Quitar
                                                                 </button>
                                                             </div>
                                                         );
@@ -2024,10 +2019,53 @@ export default function VistaAdmin() {
                                             <button type="button" className="primary-dark-btn" onClick={dispararRespaldoManual}>
                                                 Generar respaldo firmado ahora
                                             </button>
-                                            <button type="button" className="secondary-outline-btn" onClick={enviarBarridoPushCriticas}>
-                                                🔔 Probar Notificación Push Crítica
-                                            </button>
                                         </div>
+                                    </div>
+
+                                    <div className="panel-card">
+                                        <div className="panel-card-title">Acceso móvil nativo y código QR en red local</div>
+                                        <p style={{ fontSize: 13.5, color: '#4b5563', marginBottom: 14 }}>
+                                            Escanee este código desde tabletas de salón o teléfonos conectados al mismo Wi-Fi. En el navegador móvil toque Instalar aplicación para operar en pantalla completa.
+                                        </p>
+                                        {qrRed?.qrSvg ? (
+                                            <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
+                                                <div
+                                                    style={{
+                                                        padding: 10,
+                                                        background: '#ffffff',
+                                                        border: '1px solid #e5e7eb',
+                                                        borderRadius: 8,
+                                                    }}
+                                                    dangerouslySetInnerHTML={{ __html: qrRed.qrSvg }}
+                                                />
+                                                <div style={{ flex: 1, minWidth: 200 }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>
+                                                        Dirección directa de acceso:
+                                                    </div>
+                                                    <div
+                                                        style={{
+                                                            background: '#f8fafc',
+                                                            border: '1px solid #e2e8f0',
+                                                            borderRadius: 6,
+                                                            padding: '8px 10px',
+                                                            fontFamily: 'monospace',
+                                                            fontSize: 12.5,
+                                                            marginBottom: 10,
+                                                            wordBreak: 'break-all',
+                                                        }}
+                                                    >
+                                                        {qrRed.urlPrincipal}
+                                                    </div>
+                                                    <button type="button" className="secondary-outline-btn" onClick={cargarQrRed}>
+                                                        Actualizar IP de red
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button type="button" className="secondary-outline-btn" onClick={cargarQrRed}>
+                                                Generar código QR de acceso local
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -2271,7 +2309,7 @@ export default function VistaAdmin() {
                                                             fontSize: 12,
                                                         }}
                                                     >
-                                                        Quitar ✕
+                                                        Quitar
                                                     </button>
                                                 </div>
                                             );

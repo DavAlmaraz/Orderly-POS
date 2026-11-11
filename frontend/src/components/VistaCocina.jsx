@@ -29,7 +29,7 @@ export default function VistaCocina() {
         setPermisoPush(res);
         if (res === 'granted') {
             dispararNotificacionPushNavegador({
-                titulo: '🔔 Notificaciones Push KDS Activadas',
+                titulo: 'Notificaciones Push KDS Activadas',
                 mensaje: 'Recibirás alertas instantáneas de comandas urgentes, notas de alergia e insumos críticos.',
                 severidad: 'ok',
             });
@@ -219,7 +219,7 @@ export default function VistaCocina() {
             // Ignorar si expiró
         }
         limpiarSesionActiva();
-        navigate('/login');
+        navigate('/login', { replace: true, state: { sesionCerrada: true } });
     };
 
     const comandasPendientesCocina = useMemo(() => {
@@ -334,7 +334,7 @@ export default function VistaCocina() {
                                 onClick={() => setMenuAbierto(false)}
                                 aria-label="Cerrar menú"
                             >
-                                ✕
+                                Cerrar
                             </button>
                         </div>
 
@@ -422,7 +422,7 @@ export default function VistaCocina() {
                                 onClick={activarPushCocina}
                                 title="Activar notificaciones Push del sistema para alertas de insumos bajos y comandas"
                             >
-                                🔔 {permisoPush === 'granted' ? 'Push Activo' : 'Activar Push'}
+                                {permisoPush === 'granted' ? 'Push activo' : 'Activar alertas Push'}
                             </button>
                             {vistaCocina === 'inventario_cocina' ? (
                                 <>
@@ -546,7 +546,7 @@ export default function VistaCocina() {
                                                                                     fontWeight: 700,
                                                                                 }}
                                                                             >
-                                                                                {marcadoListo ? '✓' : ''}
+                                                                                {marcadoListo ? 'OK' : ''}
                                                                             </span>
                                                                             <span
                                                                                 style={{
@@ -585,7 +585,7 @@ export default function VistaCocina() {
                                                                 className={`ko-btn ${esUrgente ? 'primary-green' : 'soft-green'}`}
                                                                 onClick={() => marcarComoListo(idPed, 'preparado')}
                                                             >
-                                                                ✓ Marcar comanda lista
+                                                                Marcar comanda lista
                                                             </button>
                                                         )}
 

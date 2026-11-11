@@ -1,0 +1,20 @@
+{
+  "name": "Orderly POS",
+  "short_name": "Orderly",
+  "description": "Sistema de Gestión Restaurantera y Punto de Venta",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8f9fa",
+  "theme_color": "#2b3a4a",
+  "lang": "es-MX",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
