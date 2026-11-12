@@ -2002,20 +2002,42 @@ app.patch('/api/turno-activo', verificarToken, verificarRol(['administrador']), 
 
 app.post('/api/usuarios', verificarToken, verificarRol(['administrador']), async (req, res) => {
     const { nombre, rol, turno, tipo_turno, contrasena } = req.body;
-    if (!nombre || !rol || !contrasena) {
+    const nombreLimpio = String(nombre || '').trim();
+    const passLimpia = String(contrasena || '').trim();
+
+    if (!nombreLimpio || !rol || !passLimpia) {
         return res.status(400).json({ error: 'Nombre, rol y contraseña son obligatorios' });
     }
-    const validacionPass = validarFortalezaPassword(contrasena);
+
+    const nombreDuplicado = estado.usuarios.find(
+        (u) => String(u.nombre || '').trim().toLowerCase() === nombreLimpio.toLowerCase()
+    );
+    if (nombreDuplicado) {
+        return res.status(409).json({
+            error: `Ya existe un colaborador registrado con el nombre "${nombreLimpio}". Utiliza un nombre distinto.`
+        });
+    }
+
+    const validacionPass = validarFortalezaPassword(passLimpia);
     if (!validacionPass.valida) {
         return res.status(400).json({ error: validacionPass.error });
     }
-    const hash = await bcrypt.hash(String(contrasena).trim(), 12);
-    const nuevoId = estado.usuarios.length + 1;
+
+    for (const uExistente of estado.usuarios) {
+        if (uExistente.contrasena && await bcrypt.compare(passLimpia, uExistente.contrasena)) {
+            return res.status(409).json({
+                error: 'Esa contraseña ya está asignada a otro colaborador. Por seguridad, utiliza una contraseña única.'
+            });
+        }
+    }
+
+    const hash = await bcrypt.hash(passLimpia, 12);
+    const nuevoId = estado.usuarios.reduce((max, u) => Math.max(max, Number(u.id_usuario || u.id_Usuario || 0)), 0) + 1;
     const nuevo = {
         id_Usuario: nuevoId,
         id_usuario: nuevoId,
-        nombre: String(nombre).trim(),
-        usuario_login: String(nombre).trim().split(' ')[0],
+        nombre: nombreLimpio,
+        usuario_login: nombreLimpio.split(/\s+/)[0],
         rol,
         contrasena: hash,
         activo: true,
@@ -2025,30 +2047,79 @@ app.post('/api/usuarios', verificarToken, verificarRol(['administrador']), async
         hora_fin: '17:00',
     };
     estado.usuarios.push(nuevo);
-    registrarLog(req.usuario.nombre || 'Admin', 'CREAR_USUARIO', `Usuario creado: ${nombre} (${rol})`);
+    if (estado.mysqlDisponible) {
+        await db.query(
+            'INSERT INTO Usuarios (Id_usuario, Nombre, Rol, Contrasena, Activo, Turno) VALUES (?, ?, ?, ?, ?, ?)',
+            [nuevoId, nuevo.nombre, nuevo.rol, hash, true, nuevo.turno]
+        ).catch(() => {});
+    }
+    registrarLog(req.usuario.nombre || 'Admin', 'CREAR_USUARIO', `Usuario creado: ${nombreLimpio} (${rol})`);
     emitirActualizacionTiempoReal('usuarios:actualizado');
     return res.status(201).json(serializarUsuarioPublico(nuevo));
 });
 
 app.patch('/api/usuarios/:id/estado', verificarToken, verificarRol(['administrador']), (req, res) => {
-    const u = estado.usuarios.find((item) => (item.id_usuario || item.id_Usuario) === Number(req.params.id));
+    const idTarget = Number(req.params.id);
+    const u = estado.usuarios.find((item) => (item.id_usuario || item.id_Usuario) === idTarget);
     if (!u) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (u.activo && Number(req.usuario?.id) === idTarget) {
+        return res.status(409).json({ error: 'No puedes desactivar tu propia cuenta mientras tienes la sesión activa.' });
+    }
     u.activo = !u.activo;
     registrarLog(req.usuario.nombre || 'Admin', 'ESTADO_USUARIO', `Cuenta de ${u.nombre} cambiada a ${u.activo ? 'ACTIVA' : 'INACTIVA'}`);
     emitirActualizacionTiempoReal('usuarios:actualizado');
     return res.json(serializarUsuarioPublico(u));
 });
 
+app.delete('/api/usuarios/:id', verificarToken, verificarRol(['administrador']), async (req, res) => {
+    const idTarget = Number(req.params.id);
+    const idx = estado.usuarios.findIndex((item) => (item.id_usuario || item.id_Usuario) === idTarget);
+    if (idx === -1) {
+        return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+    const u = estado.usuarios[idx];
+    if (Number(req.usuario?.id) === idTarget) {
+        return res.status(409).json({ error: 'No puedes dar de baja tu propia cuenta mientras tienes la sesión activa.' });
+    }
+    if (u.rol === 'administrador') {
+        const adminsRestantes = estado.usuarios.filter(
+            (item) => item.rol === 'administrador' && item.activo !== false && (item.id_usuario || item.id_Usuario) !== idTarget
+        );
+        if (adminsRestantes.length === 0) {
+            return res.status(409).json({ error: 'Debe permanecer al menos un administrador activo en el sistema.' });
+        }
+    }
+
+    estado.usuarios.splice(idx, 1);
+    intentosFallidos.delete(idTarget);
+    if (estado.mysqlDisponible) {
+        await db.query('DELETE FROM Usuarios WHERE Id_usuario = ?', [idTarget]).catch(() => {});
+    }
+    registrarLog(req.usuario.nombre || 'Admin', 'BAJA_USUARIO', `Colaborador dado de baja: ${u.nombre} (${u.rol})`);
+    emitirActualizacionTiempoReal('usuarios:actualizado');
+    return res.json({ mensaje: `Colaborador "${u.nombre}" dado de baja correctamente.`, id_usuario: idTarget });
+});
+
 app.patch('/api/usuarios/:id/password', verificarToken, verificarRol(['administrador']), async (req, res) => {
-    const u = estado.usuarios.find((item) => (item.id_usuario || item.id_Usuario) === Number(req.params.id));
+    const idTarget = Number(req.params.id);
+    const u = estado.usuarios.find((item) => (item.id_usuario || item.id_Usuario) === idTarget);
     if (!u) return res.status(404).json({ error: 'Usuario no encontrado' });
     const { nuevaContrasena } = req.body || {};
-    const validacionPass = validarFortalezaPassword(nuevaContrasena);
+    const passLimpia = String(nuevaContrasena || '').trim();
+    const validacionPass = validarFortalezaPassword(passLimpia);
     if (!validacionPass.valida) {
         return res.status(400).json({ error: validacionPass.error });
     }
-    u.contrasena = await bcrypt.hash(String(nuevaContrasena).trim(), 12);
-    intentosFallidos.delete(u.id_usuario || u.id_Usuario);
+    for (const otro of estado.usuarios) {
+        const idOtro = Number(otro.id_usuario || otro.id_Usuario);
+        if (idOtro !== idTarget && otro.contrasena && await bcrypt.compare(passLimpia, otro.contrasena)) {
+            return res.status(409).json({
+                error: 'Esa contraseña ya está en uso por otro colaborador. Elige una contraseña diferente.'
+            });
+        }
+    }
+    u.contrasena = await bcrypt.hash(passLimpia, 12);
+    intentosFallidos.delete(idTarget);
     registrarLog(req.usuario.nombre || 'Admin', 'CAMBIO_PASSWORD', `Contraseña actualizada con hash bcrypt (12 rondas) para ${u.nombre}`);
     return res.json({ mensaje: `Contraseña de ${u.nombre} actualizada y protegida correctamente.` });
 });

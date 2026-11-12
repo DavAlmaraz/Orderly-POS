@@ -490,6 +490,25 @@ export default function VistaAdmin() {
         }
     }
 
+    async function darDeBajaUsuario(usuarioObj) {
+        if (!usuarioObj) return;
+        const confirmado = window.confirm(`¿Dar de baja definitivamente a "${usuarioObj.nombre}" (${usuarioObj.rol})?`);
+        if (!confirmado) return;
+        try {
+            const res = await api.delete(`/usuarios/${usuarioObj.id_usuario}`);
+            mostrarToast(res.data?.mensaje || `Colaborador "${usuarioObj.nombre}" dado de baja.`, 'ok');
+            if (Number(cambioPassUsuario.id_usuario) === Number(usuarioObj.id_usuario)) {
+                const restante = (estado?.usuarios || []).find((x) => Number(x.id_usuario) !== Number(usuarioObj.id_usuario));
+                if (restante) {
+                    setCambioPassUsuario((prev) => ({ ...prev, id_usuario: restante.id_usuario }));
+                }
+            }
+            cargarEstadoAdmin();
+        } catch (err) {
+            mostrarToast(err.response?.data?.error || 'No se pudo dar de baja al usuario', 'critico');
+        }
+    }
+
     async function actualizarPasswordUsuario(e) {
         e.preventDefault();
         if (!cambioPassUsuario.nuevaContrasena) return;
@@ -1833,6 +1852,16 @@ export default function VistaAdmin() {
                                                                     >
                                                                         {u.activo ? 'Desactivar' : 'Activar'}
                                                                     </button>
+                                                                    {Number(u.id_usuario) !== Number(usuarioActual?.id_usuario) && (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="danger-outline-btn"
+                                                                            style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                                                            onClick={() => darDeBajaUsuario(u)}
+                                                                        >
+                                                                            Dar de baja
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                         </tr>
